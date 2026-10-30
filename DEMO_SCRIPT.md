@@ -96,7 +96,7 @@
   > - **Backend:** Python 3.12 with **FastAPI**, **SQLAlchemy 2.0**, **Psycopg 3**, **Pandas**, and **NumPy** for numerical computations.
   > - **Storage:** A cloud-native **Neon Serverless PostgreSQL** database with pooled connection pooling, indexed tables for `actual_wind`, `forecast_wind`, and `sync_log`, and idempotent upserts.
   > - **Frontend:** **React 18** scaffolded with **Vite**, styled with **Tailwind CSS**, using **Shadcn UI** component patterns, **Formik** and **Zod** for form management and validation, and **Recharts** for visual analytics.
-  > - **Deployment & Containerization:** Fully containerized with a root `docker-compose.yml`, root `package.json` CLI shortcuts, and production deployment manifests for Vercel and Render/Heroku."
+  > - **Deployment & Containerization:** Fully containerized with a root `docker-compose.yml`, root `package.json` CLI shortcuts, and unified full-stack serverless deployment manifest for Vercel."
 
 ### 05:45 – 07:00 | Elexon Data Ingestion & Resolution Alignment Logic
 - **Screen Action:** Open [backend/app/services/data_store.py](file:///media/tanish/DATA1/VS%20Code%20Projects/coding_assignments/Gridbricks/backend/app/services/data_store.py) and [backend/app/services/elexon_client.py](file:///media/tanish/DATA1/VS%20Code%20Projects/coding_assignments/Gridbricks/backend/app/services/elexon_client.py).
@@ -158,7 +158,7 @@
   > - `test_metrics.py` validates known mathematical arrays against hand-calculated values, zero division safety, and risk calculations.
   > - `test_api.py` asserts that all FastAPI endpoints return 200 with valid Pydantic schemas.
   > 
-  > For deployment, `docker compose up --build` boots both services with health checks and volume persistence. The frontend is also configured for Vercel and the backend for Render/Heroku via `Procfile`."
+  > For deployment, `docker compose up --build` boots both services with health checks and volume persistence, while the entire full-stack application (React frontend and FastAPI serverless backend) is configured for unified deployment on Vercel."
 
 ### 09:30 – 09:50 | Wrap-Up & Conclusion
 - **Presenter (Say):**

@@ -2,15 +2,15 @@
 
 A full-stack software application built for UK energy utilities participating in the wholesale Day-Ahead electricity market. The platform enables power procurement teams to inspect the latest wind generation forecasts available at day-ahead gate closure ($D-1$), quantify forecast errors against actual outturn generation, and size thermal procurement and balancing reserve buffers with quantified risk margins.
 
-Powered by **Neon Serverless PostgreSQL** via **SQLAlchemy** and **Psycopg 3**.
+Powered by **Neon Serverless PostgreSQL** via **SQLAlchemy** and **Psycopg 3**, with unified full-stack serverless deployment on **Vercel**.
 
 ---
 
 ## Deployment & Repository Links
 
-- **Live Frontend (Vercel):** [https://gridbricks-windpulse.vercel.app](https://gridbricks-windpulse.vercel.app)
-- **Live Backend API (Render):** [https://gridbricks-backend.onrender.com](https://gridbricks-backend.onrender.com)
-- **API Documentation (Swagger UI):** [https://gridbricks-backend.onrender.com/docs](https://gridbricks-backend.onrender.com/docs)
+- **Live Application (Vercel):** [https://gridbricks-windpulse.vercel.app](https://gridbricks-windpulse.vercel.app)
+- **API Documentation (Swagger UI on Vercel):** [https://gridbricks-windpulse.vercel.app/docs](https://gridbricks-windpulse.vercel.app/docs)
+- **Backend Health Check:** [https://gridbricks-windpulse.vercel.app/health](https://gridbricks-windpulse.vercel.app/health)
 - **Anonymous GitHub Repository:** [https://github.com/anonymous-dev-774/kjhwr](https://github.com/anonymous-dev-774/kjhwr)
 
 ---
@@ -34,34 +34,37 @@ Because wind generation is weather-dependent and variable:
 
 ---
 
-## Architecture
+## Architecture & Technology Stack
+
+The application is engineered as a unified full-stack architecture deployed on **Vercel**:
+- **Frontend:** React 18 SPA built with Vite, Tailwind CSS, Shadcn UI primitives, Formik + Zod validation, and Recharts.
+- **Backend:** Python 3.12 FastAPI serverless functions running on Vercel (`@vercel/python`).
+- **Database:** Neon Serverless PostgreSQL with connection pooling.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                       Frontend: React 18 + Vite                              │
-│       Tailwind CSS · Shadcn UI Components · Formik + Zod Validation          │
-│              Recharts Visualizations · Lucide React Icons                   │
+│                          Unified Vercel Platform                            │
+├──────────────────────────────────────┬──────────────────────────────────────┤
+│       Frontend (Vercel Static)       │   Backend (Vercel Serverless Python) │
+│       React 18 · Vite · Tailwind     │       FastAPI · SQLAlchemy 2.0       │
+│       Shadcn UI · Formik + Zod       │       Psycopg 3 · Pandas · NumPy     │
+│       Recharts Data Visualizations   │       api/index.py entry point       │
+└──────────────────┬───────────────────┴──────────────────┬───────────────────┘
+                   │ Client Routing                       │ Pooled SQL
+                   │ (/(.*) -> frontend/dist)             │ (DATABASE_URL SSL)
+┌──────────────────▼──────────────────────────────────────▼───────────────────┐
+│                       Neon Serverless PostgreSQL                            │
+│  - actual_wind: FUELHH wind actuals (30-min resolution, indexed)            │
+│  - forecast_wind: WINDFOR wind forecasts (hourly resolution, indexed)       │
+│  - sync_log: Ingestion audit trail & metadata                               │
+│  (Idempotent Upserts, Connection Pooling with pool_recycle=300)             │
 └──────────────────────────────────────┬──────────────────────────────────────┘
-                                       │ HTTP / REST
-┌──────────────────────────────────────▼──────────────────────────────────────┐
-│                       Backend: Python 3.12 + FastAPI                        │
-│          SQLAlchemy 2.0 · Psycopg 3 · Pydantic v2 · Pandas · NumPy          │
-├─────────────────────────────────────────────────────────────────────────────┤
-│  Endpoints:                                                                 │
-│  - GET /api/v1/dates                      - GET /api/v1/metrics/daily       │
-│  - GET /api/v1/day-ahead                  - GET /api/v1/metrics/dist        │
-│  - GET /api/v1/metrics/summary            - POST /api/v1/metrics/balancing  │
-│  - GET /api/v1/metrics/hourly-profile     - POST /api/v1/sync               │
-│  - GET /api/v1/export (CSV)                                                 │
-└──────────────────┬──────────────────────────────────────┬───────────────────┘
-                   │ Pooled SQL Connection                │ HTTP Streams
-┌──────────────────▼──────────────────┐   ┌───────────────▼───────────────────┐
-│       Neon Serverless PostgreSQL    │   │         Elexon BMRS API           │
-│  - actual_wind (FUELHH WIND)        │   │  - FUELHH (30-min actuals)        │
-│  - forecast_wind (WINDFOR)          │   │  - WINDFOR (hourly forecasts)     │
-│  - sync_log                         │   │  Period: January 2026             │
-│  (Indexed & Idempotent Upserts)     │   │                                   │
-└─────────────────────────────────────┘   └───────────────────────────────────┘
+                                       │ Optional Sync (HTTP Streams)
+                        ┌──────────────▼──────────────────┐
+                        │         Elexon BMRS API         │
+                        │    - FUELHH (Outturn Wind)      │
+                        │    - WINDFOR (Forecasts)        │
+                        └─────────────────────────────────┘
 ```
 
 ---
@@ -75,11 +78,13 @@ Gridbricks/
 ├── .gitignore                          # Git exclusions (no db files or credentials)
 ├── docker-compose.yml                  # Root container orchestration with Neon env
 ├── package.json                        # Root CLI shortcuts (server:start, build, etc.)
-├── Procfile                            # Heroku / Render deployment specification
 ├── pytest.ini                          # Pytest configuration
-├── vercel.json                         # Vercel deployment specification
+├── vercel.json                         # Unified Vercel full-stack deployment manifest
 ├── DEMO_SCRIPT.md                      # Turn-by-turn video presentation script (< 10 mins)
 ├── README.md                           # Comprehensive documentation
+├── api/
+│   ├── index.py                        # Vercel serverless entry point for FastAPI app
+│   └── requirements.txt                # Python dependencies for Vercel Serverless Runtime
 ├── backend/
 │   ├── app/
 │   │   ├── __init__.py
@@ -98,8 +103,8 @@ Gridbricks/
 │   │   └── services/
 │   │       ├── __init__.py
 │   │       ├── elexon_client.py        # Async HTTPX client for FUELHH & WINDFOR streams
-│   │       ├── data_store.py           # PostgreSQL data access & idempotent upserts
-│   │       └── analytics.py            # MAE, RMSE, MBE, WAPE, quantiles, and balancing engine
+│   │       ├── data_store.py           # PostgreSQL data access & DISTINCT ON queries
+│   │       └── analytics.py            # In-memory aligned engine, metrics, & balancing calc
 │   ├── scripts/
 │   │   └── ingest_data.py              # Automated ingestion script for January 2026
 │   ├── tests/
@@ -156,7 +161,7 @@ The application exclusively uses **Neon PostgreSQL** as its sole data tier. SQLi
    ON CONFLICT (publish_time, start_time) DO UPDATE SET ...;
    ```
    Repeated synchronizations never create duplicate records.
-4. **Credential Security:** Database credentials are kept strictly server-side in `.env` and are never exposed to the frontend.
+4. **Credential Security:** Database credentials are kept strictly server-side in `.env` and Vercel environment variables, and are never exposed to the frontend.
 
 ---
 
@@ -192,13 +197,14 @@ The root `package.json` provides single-command shortcuts for all developer work
 For any delivery day $D$:
 1. The procurement decision is made on day $D - 1$.
 2. The user selects a decision cutoff time $T_{\text{cutoff}}$ (default `11:00 UTC` for EPEX/Nord Pool GB auction gate closure; customizable to `09:30`, `12:00`, `15:30`, or `17:00`).
-3. For each delivery hour $h \in [00:00, 23:00]$ on day $D$, the system queries Neon PostgreSQL:
+3. For each delivery hour $h \in [00:00, 23:00]$ on day $D$, the system queries Neon PostgreSQL using atomic `DISTINCT ON`:
    ```sql
-   SELECT publish_time, generation 
-   FROM forecast_wind 
-   WHERE start_time = :hour_target AND publish_time <= :cutoff_datetime
-   ORDER BY publish_time DESC 
-   LIMIT 1;
+   SELECT DISTINCT ON (start_time) start_time, publish_time, generation
+   FROM forecast_wind
+   WHERE start_time >= :start_bound
+     AND start_time <= :end_bound
+     AND publish_time <= :cutoff_datetime
+   ORDER BY start_time ASC, publish_time DESC;
    ```
 4. **Strict Guarantee:** Any forecast with $\text{publishTime} > (D-1) \, T_{\text{cutoff}}$ is strictly excluded.
 
@@ -214,7 +220,7 @@ For any delivery day $D$:
 
 ---
 
-## How to Start the Application
+## How to Start the Application Locally
 
 ### Option 1: Using Root NPM Scripts (Fastest)
 
@@ -258,7 +264,7 @@ backend/tests/test_alignment.py::test_forecast_alignment_selects_latest_before_c
 backend/tests/test_alignment.py::test_forecast_alignment_with_later_cutoff PASSED
 backend/tests/test_alignment.py::test_forecast_alignment_strictly_excludes_future_forecasts PASSED
 backend/tests/test_api.py::test_health_endpoint PASSED
-backend/tests/test_api.py::test_dates_endpoint PASSED
+backend/tests/test_dates_endpoint PASSED
 backend/tests/test_day_ahead_endpoint PASSED
 backend/tests/test_metrics_summary_endpoint PASSED
 backend/tests/test_hourly_profile_endpoint PASSED
@@ -268,7 +274,7 @@ backend/tests/test_metrics.py::test_accuracy_metrics_calculation PASSED
 backend/tests/test_metrics.py::test_zero_generation_and_empty_dataset PASSED
 backend/tests/test_metrics.py::test_balancing_risk_calculator PASSED
 
-======================== 16 passed, 1 warning =========================
+======================== 16 passed, 1 warning in 1.4s =========================
 ```
 
 ---
@@ -283,7 +289,7 @@ Synchronization failed: [Errno -5] No address associated with hostname
 ```
 
 #### Why it occurs:
-This is a standard system socket error (`socket.gaierror`) indicating that your local machine or Docker container was momentarily unable to resolve the external DNS address for the Elexon BMRS API (`data.elexon.co.uk`) or the database endpoint. Common causes include:
+This is a standard system socket error (`socket.gaierror`) indicating that your local machine or Docker container was momentarily unable to resolve the external DNS address for the Elexon BMRS API (`data.elexon.co.uk`). Common causes include:
 1. Running in an isolated Docker container without external DNS forwarders.
 2. Temporary DNS resolution timeout or network drop.
 3. Corporate VPN, firewall, or proxy blocking public energy API endpoints.
@@ -297,11 +303,119 @@ This is a standard system socket error (`socket.gaierror`) indicating that your 
     - 8.8.8.8
     - 1.1.1.1
   ```
-- **Local Linux/macOS DNS Fix:** If testing locally on a machine with local DNS issues, verify DNS resolution with:
-  ```bash
-  python3 -c "import socket; print(socket.gethostbyname('data.elexon.co.uk'))"
+
+---
+
+## Deploying on Vercel (Step-by-Step Guide)
+
+The entire full-stack application (React 18 frontend + FastAPI serverless backend) deploys directly to **Vercel** as a unified project. Render is **not used**; Vercel handles static frontend hosting, serverless Python API functions, and reverse-proxy routing in a single deployment.
+
+### How Full-Stack Vercel Architecture Works
+
+The root [`vercel.json`](./vercel.json) orchestrates the build:
+1. **Serverless Backend (`api/index.py`):** Built via `@vercel/python`. Vercel automatically creates AWS Lambda serverless functions from `api/index.py`, executing the FastAPI application.
+2. **Frontend SPA (`frontend/`):** Built via `@vercel/static-build` using Vite. Output assets are placed in `frontend/dist`.
+3. **Clean Route Delegation:**
+   - `/api/*`, `/docs`, `/openapi.json`, and `/health` route directly to `api/index.py`.
+   - All other routes (`/(.*)`) route to the React SPA (`frontend/$1`).
+
+---
+
+### Method 1: Deploy via Vercel Web Dashboard (Recommended)
+
+#### Step 1: Push Code to GitHub
+Push your local code to your GitHub repository:
+```bash
+git add .
+git commit -m "feat: configure full-stack Vercel deployment with serverless FastAPI and Neon"
+git push origin main
+```
+
+#### Step 2: Import Project into Vercel
+1. Log in to [vercel.com](https://vercel.com).
+2. Click **"Add New..."** > **"Project"**.
+3. Select your GitHub repository and click **"Import"**.
+
+#### Step 3: Configure Project Settings
+1. **Project Name:** `gridbricks-windpulse` (or your preferred name).
+2. **Framework Preset:** Leave as **"Other"** (Vercel will detect configuration automatically from [`vercel.json`](./vercel.json)).
+3. **Root Directory:** Keep as `./` (the repository root).
+
+#### Step 4: Configure Environment Variables
+Under the **Environment Variables** section, add your Neon PostgreSQL connection string:
+- **Key:** `DATABASE_URL`
+- **Value:** Your Neon pooled connection string:
+  ```text
+  postgresql://neondb_owner:YOUR_PASSWORD@ep-shiny-voice-b4kevcgl-pooler.c-6.us-east-2.aws.neon.tech/neondb?sslmode=require
   ```
-  If this fails, add `nameserver 8.8.8.8` to `/etc/resolv.conf` or ensure your network connection is active.
+- Check all environments: **Production**, **Preview**, and **Development**.
+
+#### Step 5: Deploy
+Click **"Deploy"**. Vercel will:
+- Build the React bundle using Vite.
+- Package the FastAPI application and install dependencies from `api/requirements.txt`.
+- Deploy the frontend assets to the global Edge CDN and the API to Serverless Functions.
+
+---
+
+### Method 2: Deploy via Vercel CLI
+
+#### Step 1: Install Vercel CLI
+```bash
+npm install -g vercel
+```
+
+#### Step 2: Log In to Vercel
+```bash
+vercel login
+```
+
+#### Step 3: Link Project & Add Environment Variable
+Run the link command in the repository root:
+```bash
+vercel link
+```
+
+Add your `DATABASE_URL` to Vercel:
+```bash
+vercel env add DATABASE_URL
+# When prompted, paste your Neon PostgreSQL connection string:
+# postgresql://neondb_owner:YOUR_PASSWORD@ep-...-pooler.../neondb?sslmode=require
+# Select: Production, Preview, Development
+```
+
+#### Step 4: Deploy to Production
+```bash
+vercel --prod
+```
+
+Vercel will output your live URL (e.g., `https://gridbricks-windpulse.vercel.app`).
+
+---
+
+### Post-Deployment Verification Checklist
+
+Once deployed, verify that all layers of the application are working:
+
+1. **Frontend UI:** Visit `https://your-project.vercel.app/`. Ensure the Day-Ahead Procurement view loads with charts, KPIs, and date pickers.
+2. **Health Check:** Visit `https://your-project.vercel.app/health`. You should receive:
+   ```json
+   {
+     "status": "healthy",
+     "service": "GridBricks WindPulse Backend",
+     "database": {
+       "latest_sync": "2026-10-30T08:51:22Z",
+       "actual_count": 1585,
+       "forecast_count": 19297
+     }
+   }
+   ```
+3. **Swagger API Documentation:** Visit `https://your-project.vercel.app/docs` to inspect interactive OpenAPI documentation.
+4. **Day-Ahead Endpoint:** Test the Day-Ahead API directly:
+   ```bash
+   curl "https://your-project.vercel.app/api/v1/day-ahead?delivery_date=2026-01-15&cutoff_time=11:00"
+   ```
+5. **Accuracy Metrics:** Switch between tabs ("Quantitative Accuracy", "Balancing Risk Calculator", "Data Explorer") in the UI to confirm seamless sub-10ms data retrieval.
 
 ---
 
@@ -312,4 +426,5 @@ In compliance with the assessment guidelines, AI assistance (Google Antigravity 
 - Scaffolding the React and FastAPI boilerplate.
 - Designing unit test cases for statistical edge cases and alignment logic.
 - Refining the user interface design with Tailwind CSS and Recharts styling.
+
 All business logic, market alignment algorithms, error calculations, and application designs were thoroughly reviewed, validated, and tested against actual Elexon January 2026 market data.
