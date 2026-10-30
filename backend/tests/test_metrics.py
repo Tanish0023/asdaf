@@ -6,11 +6,9 @@ from backend.app.database import init_db
 from backend.app.schemas import BalancingCalcRequest
 
 @pytest.fixture(autouse=True)
-def setup_test_db(tmp_path, monkeypatch):
-    test_db = str(tmp_path / "test_metrics.db")
-    monkeypatch.setattr("backend.app.config.DB_PATH", test_db)
+def setup_test_db():
     init_db()
-    yield test_db
+    yield
 
 def test_accuracy_metrics_calculation(monkeypatch):
     store = DataStore()

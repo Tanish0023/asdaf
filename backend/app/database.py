@@ -1,59 +1,58 @@
-import sqlite3
-import os
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, Session
 from contextlib import contextmanager
-import backend.app.config as config
+import logging
 
-def init_db(db_path: str = None):
-    target_path = db_path or config.DB_PATH
-    os.makedirs(os.path.dirname(target_path), exist_ok=True)
-    with get_db_connection(target_path) as conn:
-        cursor = conn.cursor()
-        
-        # Actuals table (from FUELHH, wind only)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS actual_wind (
-                startTime TEXT PRIMARY KEY,
-                publishTime TEXT,
-                settlementDate TEXT,
-                settlementPeriod INTEGER,
-                generation REAL NOT NULL
-            );
-        """)
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_actual_startTime ON actual_wind(startTime);")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_actual_settlementDate ON actual_wind(settlementDate);")
+from backend.app.config import get_database_url
+from backend.app.models import Base
 
-        # Forecasts table (from WINDFOR)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS forecast_wind (
-                publishTime TEXT NOT NULL,
-                startTime TEXT NOT NULL,
-                generation REAL NOT NULL,
-                PRIMARY KEY (publishTime, startTime)
-            );
-        """)
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_forecast_startTime ON forecast_wind(startTime);")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_forecast_publishTime ON forecast_wind(publishTime);")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_forecast_lookup ON forecast_wind(startTime, publishTime);")
+logger = logging.getLogger(__name__)
 
-        # Sync log table
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS sync_log (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                dataset TEXT NOT NULL,
-                synced_at TEXT NOT NULL,
-                records_count INTEGER NOT NULL,
-                status TEXT NOT NULL,
-                details TEXT
-            );
-        """)
-        conn.commit()
+_engine = None
+_SessionLocal = None
+
+def get_engine():
+    global _engine
+    if _engine is None:
+        db_url = get_database_url()
+        # Configure SQLAlchemy engine optimized for Neon PostgreSQL pooled connections
+        _engine = create_engine(
+            db_url,
+            pool_pre_ping=True,      # Detects dropped/stale Neon serverless connections
+            pool_recycle=300,        # Recycles connections every 5 min
+            pool_size=10,
+            max_overflow=20,
+            echo=False
+        )
+    return _engine
+
+def get_session_factory():
+    global _SessionLocal
+    if _SessionLocal is None:
+        engine = get_engine()
+        _SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    return _SessionLocal
+
+def init_db():
+    """
+    Initializes PostgreSQL database tables and indexes on Neon.
+    """
+    engine = get_engine()
+    logger.info("Initializing Neon PostgreSQL schema...")
+    Base.metadata.create_all(bind=engine)
+    logger.info("Neon PostgreSQL schema created successfully.")
 
 @contextmanager
-def get_db_connection(db_path: str = None):
-    target_path = db_path or config.DB_PATH
-    conn = sqlite3.connect(target_path)
-    conn.row_factory = sqlite3.Row
+def get_db():
+    """
+    Provides a transactional scope around a series of operations.
+    """
+    SessionLocal = get_session_factory()
+    session: Session = SessionLocal()
     try:
-        yield conn
+        yield session
+    except Exception:
+        session.rollback()
+        raise
     finally:
-        conn.close()
+        session.close()

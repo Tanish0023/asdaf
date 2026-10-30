@@ -18,7 +18,7 @@ logging.basicConfig(
 logger = logging.getLogger("ingest")
 
 async def main():
-    logger.info("Initializing SQLite database...")
+    logger.info("Initializing Neon PostgreSQL database...")
     init_db()
 
     client = ElexonClient()

@@ -10,6 +10,12 @@ ENV/
 .pytest_cache/
 *.log
 
+# Database files (Neon PostgreSQL is the sole database)
+backend/data/
+*.db
+*.sqlite
+*.sqlite3
+
 # Node & Frontend
 node_modules/
 frontend/node_modules/
@@ -19,6 +25,7 @@ frontend/dist/
 
 # Environment & IDE
 .env
+.env.local
 .DS_Store
 .idea/
 .vscode/

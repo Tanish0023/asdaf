@@ -1,0 +1,34 @@
+{
+  "name": "gridbricks-windpulse-platform",
+  "version": "1.0.0",
+  "description": "UK Wholesale Day-Ahead Renewable Generation Forecast & Accuracy Evaluation Platform with Neon PostgreSQL",
+  "private": true,
+  "scripts": {
+    "server:start": "bash -c 'if [ -d backend/venv ]; then ./backend/venv/bin/uvicorn backend.app.main:app --host 0.0.0.0 --port ${PORT:-8000}; else uvicorn backend.app.main:app --host 0.0.0.0 --port ${PORT:-8000}; fi'",
+    "server:start:show": "bash -c 'if [ -d backend/venv ]; then ./backend/venv/bin/uvicorn backend.app.main:app --host 0.0.0.0 --port ${PORT:-8000} --reload; else uvicorn backend.app.main:app --host 0.0.0.0 --port ${PORT:-8000} --reload; fi'",
+    "server:build": "bash -c 'python3 -m venv backend/venv && ./backend/venv/bin/pip install --upgrade pip && ./backend/venv/bin/pip install -r backend/requirements.txt'",
+    "server:test": "bash -c 'if [ -d backend/venv ]; then ./backend/venv/bin/pytest -v; else pytest -v; fi'",
+    "server:ingest": "bash -c 'if [ -d backend/venv ]; then ./backend/venv/bin/python backend/scripts/ingest_data.py; else python3 backend/scripts/ingest_data.py; fi'",
+    "client:install": "npm --prefix frontend install",
+    "client:start": "npm --prefix frontend run dev",
+    "client:build": "npm --prefix frontend run build",
+    "client:preview": "npm --prefix frontend run preview",
+    "install:all": "npm run server:build && npm run client:install",
+    "dev": "npx --yes concurrently -k -p \"[{name}]\" -n \"BACKEND,FRONTEND\" -c \"cyan,emerald\" \"npm run server:start:show\" \"npm run client:start\"",
+    "docker:build": "docker compose build",
+    "docker:up": "docker compose up",
+    "docker:down": "docker compose down",
+    "test": "npm run server:test"
+  },
+  "keywords": [
+    "energy-trading",
+    "elexon-bmrs",
+    "wind-forecast",
+    "day-ahead-market",
+    "neon-postgres",
+    "fastapi",
+    "react"
+  ],
+  "author": "GridBricks Team",
+  "license": "MIT"
+}

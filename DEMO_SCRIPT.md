@@ -93,10 +93,10 @@
   > "Hi everyone. Now let’s transition into Part 2: the internal technical walkthrough of the architecture, data pipeline, and codebase design.
   > 
   > The system is built with a decoupled modern architecture:
-  > - **Backend:** Python 3.12 with **FastAPI**, **Pandas**, and **NumPy** for numerical computations.
-  > - **Storage:** A local **SQLite** database with indexed tables for `actual_wind`, `forecast_wind`, and `sync_log`.
+  > - **Backend:** Python 3.12 with **FastAPI**, **SQLAlchemy 2.0**, **Psycopg 3**, **Pandas**, and **NumPy** for numerical computations.
+  > - **Storage:** A cloud-native **Neon Serverless PostgreSQL** database with pooled connection pooling, indexed tables for `actual_wind`, `forecast_wind`, and `sync_log`, and idempotent upserts.
   > - **Frontend:** **React 18** scaffolded with **Vite**, styled with **Tailwind CSS**, using **Shadcn UI** component patterns, **Formik** and **Zod** for form management and validation, and **Recharts** for visual analytics.
-  > - **Deployment & Containerization:** Fully containerized with a root `docker-compose.yml`, multi-stage Dockerfiles for both backend and frontend (with Nginx reverse proxy), and production deployment manifests for Vercel and Render/Heroku."
+  > - **Deployment & Containerization:** Fully containerized with a root `docker-compose.yml`, root `package.json` CLI shortcuts, and production deployment manifests for Vercel and Render/Heroku."
 
 ### 05:45 – 07:00 | Elexon Data Ingestion & Resolution Alignment Logic
 - **Screen Action:** Open [backend/app/services/data_store.py](file:///media/tanish/DATA1/VS%20Code%20Projects/coding_assignments/Gridbricks/backend/app/services/data_store.py) and [backend/app/services/elexon_client.py](file:///media/tanish/DATA1/VS%20Code%20Projects/coding_assignments/Gridbricks/backend/app/services/elexon_client.py).
@@ -126,9 +126,9 @@
   > - We compute the decision date: `decision_dt = deliv_dt - timedelta(days=1)`.
   > - We construct the strict cutoff timestamp: `cutoff_datetime = f"{dec_date}T{cutoff_time}:00Z"`.
   > - For each delivery hour $h \in [0..23]$:
-  >   We query SQLite:
-  >   `WHERE startTime = :hour_target AND publishTime <= :cutoff_datetime`
-  >   `ORDER BY publishTime DESC LIMIT 1`.
+  >   We query Neon PostgreSQL:
+  >   `WHERE start_time = :hour_target AND publish_time <= :cutoff_datetime`
+  >   `ORDER BY publish_time DESC LIMIT 1`.
   > 
   > This guarantees two things:
   > 1. It selects the absolute latest forecast available at or before the trader’s cutoff time.

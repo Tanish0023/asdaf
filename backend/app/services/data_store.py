@@ -1,62 +1,103 @@
-import sqlite3
-import logging
 from datetime import datetime, timedelta
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Tuple, Optional
 from collections import defaultdict
+import logging
 
-from backend.app.database import get_db_connection
+from sqlalchemy import select, func, desc, and_
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+from backend.app.database import get_db
+from backend.app.models import ActualWind, ForecastWind, SyncLog
 
 logger = logging.getLogger(__name__)
 
 class DataStore:
-    def upsert_actuals(self, records: List[Dict[str, Any]]) -> int:
+    def upsert_actuals(self, records: List[Dict[str, Any]], batch_size: int = 500) -> int:
+        """
+        Idempotent PostgreSQL upsert for actual wind generation records (FUELHH).
+        """
         if not records:
             return 0
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.executemany("""
-                INSERT OR REPLACE INTO actual_wind 
-                (startTime, publishTime, settlementDate, settlementPeriod, generation)
-                VALUES (:startTime, :publishTime, :settlementDate, :settlementPeriod, :generation)
-            """, records)
-            conn.commit()
-            return len(records)
 
-    def upsert_forecasts(self, records: List[Dict[str, Any]]) -> int:
+        # Transform keys to match ActualWind column names
+        mapped_records = []
+        for r in records:
+            mapped_records.append({
+                "start_time": r.get("startTime") or r.get("start_time"),
+                "publish_time": r.get("publishTime") or r.get("publish_time"),
+                "settlement_date": r.get("settlementDate") or r.get("settlement_date"),
+                "settlement_period": r.get("settlementPeriod") or r.get("settlement_period"),
+                "generation": float(r.get("generation", 0.0)),
+            })
+
+        total_upserted = 0
+        with get_db() as session:
+            for i in range(0, len(mapped_records), batch_size):
+                batch = mapped_records[i:i + batch_size]
+                stmt = pg_insert(ActualWind).values(batch)
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=[ActualWind.start_time],
+                    set_={
+                        "publish_time": stmt.excluded.publish_time,
+                        "settlement_date": stmt.excluded.settlement_date,
+                        "settlement_period": stmt.excluded.settlement_period,
+                        "generation": stmt.excluded.generation,
+                    }
+                )
+                session.execute(stmt)
+                total_upserted += len(batch)
+            session.commit()
+
+        return total_upserted
+
+    def upsert_forecasts(self, records: List[Dict[str, Any]], batch_size: int = 500) -> int:
+        """
+        Idempotent PostgreSQL upsert for wind forecast records (WINDFOR).
+        """
         if not records:
             return 0
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.executemany("""
-                INSERT OR REPLACE INTO forecast_wind 
-                (publishTime, startTime, generation)
-                VALUES (:publishTime, :startTime, :generation)
-            """, records)
-            conn.commit()
-            return len(records)
+
+        mapped_records = []
+        for r in records:
+            mapped_records.append({
+                "publish_time": r.get("publishTime") or r.get("publish_time"),
+                "start_time": r.get("startTime") or r.get("start_time"),
+                "generation": float(r.get("generation", 0.0)),
+            })
+
+        total_upserted = 0
+        with get_db() as session:
+            for i in range(0, len(mapped_records), batch_size):
+                batch = mapped_records[i:i + batch_size]
+                stmt = pg_insert(ForecastWind).values(batch)
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=[ForecastWind.publish_time, ForecastWind.start_time],
+                    set_={"generation": stmt.excluded.generation}
+                )
+                session.execute(stmt)
+                total_upserted += len(batch)
+            session.commit()
+
+        return total_upserted
 
     def log_sync(self, dataset: str, count: int, status: str, details: str = ""):
-        now = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                INSERT INTO sync_log (dataset, synced_at, records_count, status, details)
-                VALUES (?, ?, ?, ?, ?)
-            """, (dataset, now, count, status, details))
-            conn.commit()
+        now_str = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+        with get_db() as session:
+            log_entry = SyncLog(
+                dataset=dataset,
+                synced_at=now_str,
+                records_count=count,
+                status=status,
+                details=details
+            )
+            session.add(log_entry)
+            session.commit()
 
     def get_sync_status(self) -> Dict[str, Any]:
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT MAX(synced_at) as latest_sync FROM sync_log WHERE status = 'SUCCESS'")
-            row = cursor.fetchone()
-            latest_sync = row["latest_sync"] if row and row["latest_sync"] else None
-
-            cursor.execute("SELECT COUNT(*) as count FROM actual_wind")
-            actual_count = cursor.fetchone()["count"]
-
-            cursor.execute("SELECT COUNT(*) as count FROM forecast_wind")
-            forecast_count = cursor.fetchone()["count"]
+        with get_db() as session:
+            latest_sync = session.query(func.max(SyncLog.synced_at)).filter(SyncLog.status == "SUCCESS").scalar()
+            actual_count = session.query(func.count(ActualWind.start_time)).scalar() or 0
+            forecast_count = session.query(func.count(ForecastWind.publish_time)).scalar() or 0
 
             return {
                 "latest_sync": latest_sync,
@@ -65,22 +106,16 @@ class DataStore:
             }
 
     def get_available_dates(self) -> Dict[str, Any]:
-        """
-        Derives available delivery dates and decision dates.
-        Delivery dates in January 2026: 2026-01-01 through 2026-01-31.
-        Decision date is delivery_date - 1 day.
-        """
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT DISTINCT SUBSTR(startTime, 1, 10) as date_str 
-                FROM actual_wind 
-                WHERE startTime >= '2026-01-01T00:00:00Z' AND startTime <= '2026-01-31T23:59:59Z'
-                ORDER BY date_str ASC
-            """)
-            dates = [row["date_str"] for row in cursor.fetchall()]
+        with get_db() as session:
+            rows = session.query(
+                func.substr(ActualWind.start_time, 1, 10).label("date_str")
+            ).filter(
+                ActualWind.start_time >= "2026-01-01T00:00:00Z",
+                ActualWind.start_time <= "2026-01-31T23:59:59Z"
+            ).distinct().order_by("date_str").all()
 
-        # If DB not yet fully populated, default to standard Jan 2026 dates
+            dates = [r.date_str for r in rows]
+
         if not dates:
             start = datetime(2026, 1, 1)
             dates = [(start + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(31)]
@@ -102,30 +137,27 @@ class DataStore:
     def get_hourly_actuals_for_date(self, delivery_date: str) -> Dict[str, Dict[str, Any]]:
         """
         Fetches half-hourly actuals for delivery_date and aggregates into 24 hourly averages.
-        Returns dict keyed by hour string ('YYYY-MM-DDTHH:00:00Z').
         """
-        # Range covers 00:00:00Z through 23:59:59Z
         start_bound = f"{delivery_date}T00:00:00Z"
         end_bound = f"{delivery_date}T23:59:59Z"
 
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT startTime, settlementPeriod, generation
-                FROM actual_wind
-                WHERE startTime >= ? AND startTime <= ?
-                ORDER BY startTime ASC
-            """, (start_bound, end_bound))
-            rows = cursor.fetchall()
+        with get_db() as session:
+            rows = session.query(
+                ActualWind.start_time,
+                ActualWind.settlement_period,
+                ActualWind.generation
+            ).filter(
+                ActualWind.start_time >= start_bound,
+                ActualWind.start_time <= end_bound
+            ).order_by(ActualWind.start_time.asc()).all()
 
         hourly_buckets = defaultdict(lambda: {"gens": [], "periods": []})
         for row in rows:
-            st = row["startTime"]
-            # e.g. 2026-01-15T14:30:00Z -> 2026-01-15T14:00:00Z
+            st = row.start_time
             hour_key = st[:13] + ":00:00Z"
-            hourly_buckets[hour_key]["gens"].append(row["generation"])
-            if row["settlementPeriod"] is not None:
-                hourly_buckets[hour_key]["periods"].append(row["settlementPeriod"])
+            hourly_buckets[hour_key]["gens"].append(row.generation)
+            if row.settlement_period is not None:
+                hourly_buckets[hour_key]["periods"].append(row.settlement_period)
 
         hourly_actuals = {}
         for h in range(24):
@@ -149,21 +181,17 @@ class DataStore:
         self,
         delivery_date: str,
         cutoff_time: str
-    ) -> Dict[str, Dict[str, Any]]:
+    ) -> Tuple[Dict[str, Dict[str, Any]], str, str]:
         """
-        Day-Ahead Decision Alignment:
-        For delivery date D, decision is made on D-1.
-        Cutoff datetime C is: (delivery_date - 1 day) + cutoff_time.
-        For each delivery hour h on day D:
-            Find forecasts for startTime == h with publishTime <= C.
-            Pick the one with MAX(publishTime).
-        Strictly excludes any forecast with publishTime > C.
+        Day-Ahead Decision Alignment in PostgreSQL:
+        For delivery date D, decision cutoff datetime C is (D-1) at cutoff_time.
+        For each delivery hour h on day D, selects latest published forecast at or before C.
+        Strictly excludes any forecast published after C.
         """
         deliv_dt = datetime.strptime(delivery_date, "%Y-%m-%d")
         decision_dt = deliv_dt - timedelta(days=1)
         dec_date_str = decision_dt.strftime("%Y-%m-%d")
 
-        # Normalize cutoff_time e.g. "11:00" -> "11:00:00Z"
         cutoff_clean = cutoff_time.strip()
         if len(cutoff_clean.split(":")) == 2:
             cutoff_clean = f"{cutoff_clean}:00Z"
@@ -172,23 +200,22 @@ class DataStore:
 
         cutoff_datetime = f"{dec_date_str}T{cutoff_clean}"
 
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
+        with get_db() as session:
             hourly_forecasts = {}
             for h in range(24):
                 hour_target = f"{delivery_date}T{h:02d}:00:00Z"
-                cursor.execute("""
-                    SELECT publishTime, generation
-                    FROM forecast_wind
-                    WHERE startTime = ? AND publishTime <= ?
-                    ORDER BY publishTime DESC
-                    LIMIT 1
-                """, (hour_target, cutoff_datetime))
-                row = cursor.fetchone()
+                row = session.query(
+                    ForecastWind.publish_time,
+                    ForecastWind.generation
+                ).filter(
+                    ForecastWind.start_time == hour_target,
+                    ForecastWind.publish_time <= cutoff_datetime
+                ).order_by(ForecastWind.publish_time.desc()).first()
+
                 if row:
                     hourly_forecasts[hour_target] = {
-                        "generation": round(row["generation"], 2),
-                        "publishTime": row["publishTime"]
+                        "generation": round(row.generation, 2),
+                        "publishTime": row.publish_time
                     }
                 else:
                     hourly_forecasts[hour_target] = {

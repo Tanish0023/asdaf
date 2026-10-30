@@ -13,7 +13,7 @@ logger = logging.getLogger("gridbricks.api")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup: Initialize Database
-    logger.info("Initializing SQLite database...")
+    logger.info("Initializing Neon PostgreSQL database...")
     init_db()
     
     store = DataStore()

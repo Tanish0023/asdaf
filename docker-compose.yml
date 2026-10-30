@@ -8,10 +8,8 @@ services:
       - "8000:8000"
     environment:
       - PYTHONUNBUFFERED=1
-      - SQLITE_DB_PATH=/app/backend/data/wind_data.db
-      - ELEXON_BASE_URL=https://data.elexon.co.uk/bmrs/api/v1
-    volumes:
-      - ./backend/data:/app/backend/data
+      - DATABASE_URL=${DATABASE_URL}
+      - ELEXON_BASE_URL=${ELEXON_BASE_URL:-https://data.elexon.co.uk/bmrs/api/v1}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
