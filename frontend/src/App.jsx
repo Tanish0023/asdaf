@@ -43,16 +43,24 @@ export default function App() {
       if (res.ok) {
         setSyncNotice({
           type: "success",
-          message: `Successfully synchronized ${data.actuals_synced} actuals and ${data.forecasts_synced} forecasts from Elexon BMRS.`,
+          title: "Synchronization Successful",
+          message: `Successfully refreshed ${data.actuals_synced} actuals and ${data.forecasts_synced} forecasts from Elexon BMRS into Neon PostgreSQL.`,
         })
         fetchDates()
+      } else if (res.status === 503) {
+        setSyncNotice({
+          type: "warning",
+          title: "External Elexon Live Endpoint Notice",
+          message: data.detail || "External Elexon API is temporarily unreachable (DNS/Network). The platform continues operating without interruption on the pre-cached January 2026 dataset in Neon PostgreSQL.",
+        })
       } else {
         throw new Error(data.detail || "Sync failed")
       }
     } catch (err) {
       setSyncNotice({
         type: "error",
-        message: err.message || "Failed to synchronize with Elexon API.",
+        title: "Synchronization Failed",
+        message: err.message || "Failed to synchronize with Elexon API. The platform continues operating using cached data in Neon PostgreSQL.",
       })
     } finally {
       setIsSyncing(false)
@@ -68,13 +76,13 @@ export default function App() {
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
         {/* Sync Notification Banner */}
         {syncNotice && (
-          <Alert variant={syncNotice.type === "success" ? "success" : "destructive"}>
+          <Alert variant={syncNotice.type === "success" ? "success" : syncNotice.type === "warning" ? "warning" : "destructive"}>
             {syncNotice.type === "success" ? (
               <CheckCircle2 className="h-4 w-4" />
             ) : (
               <AlertTriangle className="h-4 w-4" />
             )}
-            <AlertTitle>{syncNotice.type === "success" ? "Sync Successful" : "Sync Error"}</AlertTitle>
+            <AlertTitle>{syncNotice.title || (syncNotice.type === "success" ? "Sync Successful" : "Sync Error")}</AlertTitle>
             <AlertDescription>{syncNotice.message}</AlertDescription>
           </Alert>
         )}

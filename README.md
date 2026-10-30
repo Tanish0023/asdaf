@@ -273,6 +273,38 @@ backend/tests/test_metrics.py::test_balancing_risk_calculator PASSED
 
 ---
 
+## Troubleshooting & Network Configuration
+
+### Resolving `[Errno -5] No address associated with hostname`
+
+If you encounter this message during manual synchronization:
+```
+Synchronization failed: [Errno -5] No address associated with hostname
+```
+
+#### Why it occurs:
+This is a standard system socket error (`socket.gaierror`) indicating that your local machine or Docker container was momentarily unable to resolve the external DNS address for the Elexon BMRS API (`data.elexon.co.uk`) or the database endpoint. Common causes include:
+1. Running in an isolated Docker container without external DNS forwarders.
+2. Temporary DNS resolution timeout or network drop.
+3. Corporate VPN, firewall, or proxy blocking public energy API endpoints.
+
+#### How the application handles this:
+- **Resilient Pre-Cached Architecture:** The complete January 2026 actuals (1,585 records) and forecasts (19,297 records) are already pre-cached in Neon PostgreSQL. **External synchronization with Elexon is completely optional** during normal operation. The dashboard, day-ahead matching, accuracy metrics, and balancing calculators read directly from Neon and continue working without internet access to Elexon.
+- **Graceful Service Handling:** The backend returns an informative `HTTP 503 Service Unavailable` with automatic exponential backoff retries rather than crashing.
+- **Docker DNS Solution:** Both services in `docker-compose.yml` are configured with explicit public DNS fallbacks (`8.8.8.8` and `1.1.1.1`):
+  ```yaml
+  dns:
+    - 8.8.8.8
+    - 1.1.1.1
+  ```
+- **Local Linux/macOS DNS Fix:** If testing locally on a machine with local DNS issues, verify DNS resolution with:
+  ```bash
+  python3 -c "import socket; print(socket.gethostbyname('data.elexon.co.uk'))"
+  ```
+  If this fails, add `nameserver 8.8.8.8` to `/etc/resolv.conf` or ensure your network connection is active.
+
+---
+
 ## Acknowledgment of AI Tools Used
 
 In compliance with the assessment guidelines, AI assistance (Google Antigravity / Gemini) was utilized during development for:

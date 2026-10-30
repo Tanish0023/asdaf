@@ -1,5 +1,6 @@
 import httpx
 import logging
+import asyncio
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 
@@ -7,10 +8,46 @@ from backend.app.config import ELEXON_BASE_URL
 
 logger = logging.getLogger(__name__)
 
+class ElexonConnectionError(Exception):
+    """Raised when Elexon BMRS API cannot be reached due to DNS or network errors."""
+    pass
+
 class ElexonClient:
-    def __init__(self, base_url: str = ELEXON_BASE_URL, timeout: float = 45.0):
+    def __init__(self, base_url: str = ELEXON_BASE_URL, timeout: float = 30.0, max_retries: int = 3):
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
+        self.max_retries = max_retries
+
+    async def _get_with_retry(self, url: str, params: dict, headers: dict) -> dict:
+        """
+        Executes HTTP GET with retries and exponential backoff to handle transient DNS or connection drops.
+        """
+        last_error = None
+        transport = httpx.AsyncHTTPTransport(retries=self.max_retries)
+        
+        for attempt in range(1, self.max_retries + 1):
+            try:
+                async with httpx.AsyncClient(timeout=self.timeout, transport=transport) as client:
+                    resp = await client.get(url, params=params, headers=headers)
+                    resp.raise_for_status()
+                    return resp.json()
+            except (httpx.ConnectError, httpx.NetworkError) as e:
+                last_error = e
+                logger.warning(f"Connection attempt {attempt}/{self.max_retries} to {url} failed: {e}")
+                if attempt < self.max_retries:
+                    await asyncio.sleep(1.5 * attempt)
+            except Exception as e:
+                logger.error(f"Unexpected HTTP error for {url}: {e}")
+                raise e
+
+        # If all retries exhausted
+        err_msg = (
+            f"Unable to reach Elexon BMRS API at {self.base_url}. "
+            f"DNS or network resolution failed: {str(last_error)}. "
+            "Please check internet connectivity and DNS configuration."
+        )
+        logger.error(err_msg)
+        raise ElexonConnectionError(err_msg)
 
     async def fetch_fuelhh_stream(
         self,
@@ -19,8 +56,6 @@ class ElexonClient:
     ) -> List[Dict[str, Any]]:
         """
         Fetch FUELHH actual generation stream and filter for WIND.
-        Returns list of wind records with:
-        startTime, publishTime, settlementDate, settlementPeriod, generation
         """
         url = f"{self.base_url}/datasets/FUELHH/stream"
         params = {
@@ -29,16 +64,12 @@ class ElexonClient:
         }
         headers = {"User-Agent": "GridBricks-WindPulse/1.0 (Energy Procurement)"}
 
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            resp = await client.get(url, params=params, headers=headers)
-            resp.raise_for_status()
-            raw_data = resp.json()
+        raw_data = await self._get_with_retry(url, params, headers)
 
         wind_records = []
         for item in raw_data:
             if item.get("fuelType") == "WIND":
                 gen = item.get("generation")
-                # Handle possible null or missing generation
                 gen_val = float(gen) if gen is not None else 0.0
                 wind_records.append({
                     "startTime": item.get("startTime"),
@@ -58,8 +89,6 @@ class ElexonClient:
     ) -> List[Dict[str, Any]]:
         """
         Fetch WINDFOR wind forecasts stream.
-        Returns list of records with:
-        publishTime, startTime, generation
         """
         url = f"{self.base_url}/datasets/WINDFOR/stream"
         params = {
@@ -68,10 +97,7 @@ class ElexonClient:
         }
         headers = {"User-Agent": "GridBricks-WindPulse/1.0 (Energy Procurement)"}
 
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            resp = await client.get(url, params=params, headers=headers)
-            resp.raise_for_status()
-            raw_data = resp.json()
+        raw_data = await self._get_with_retry(url, params, headers)
 
         forecast_records = []
         for item in raw_data:
@@ -107,18 +133,13 @@ class ElexonClient:
             from_str = current_start.strftime("%Y-%m-%dT%H:%M:%SZ")
             to_str = current_end.strftime("%Y-%m-%dT%H:%M:%SZ")
 
-            try:
-                if dataset == "FUELHH":
-                    records = await self.fetch_fuelhh_stream(from_str, to_str)
-                elif dataset == "WINDFOR":
-                    records = await self.fetch_windfor_stream(from_str, to_str)
-                else:
-                    raise ValueError(f"Unknown dataset: {dataset}")
-                all_records.extend(records)
-            except Exception as e:
-                logger.error(f"Error fetching {dataset} for {from_str} to {to_str}: {e}")
-                # continue to next chunk or re-raise if fatal
-                raise e
+            if dataset == "FUELHH":
+                records = await self.fetch_fuelhh_stream(from_str, to_str)
+            elif dataset == "WINDFOR":
+                records = await self.fetch_windfor_stream(from_str, to_str)
+            else:
+                raise ValueError(f"Unknown dataset: {dataset}")
+            all_records.extend(records)
 
             current_start = current_end
 

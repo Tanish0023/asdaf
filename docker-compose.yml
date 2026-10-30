@@ -10,6 +10,9 @@ services:
       - PYTHONUNBUFFERED=1
       - DATABASE_URL=${DATABASE_URL}
       - ELEXON_BASE_URL=${ELEXON_BASE_URL:-https://data.elexon.co.uk/bmrs/api/v1}
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
@@ -24,6 +27,9 @@ services:
     container_name: gridbricks-frontend
     ports:
       - "3000:80"
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     depends_on:
       - backend
     restart: unless-stopped
