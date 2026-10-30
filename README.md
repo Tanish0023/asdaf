@@ -167,21 +167,20 @@ The application exclusively uses **Neon PostgreSQL** as its sole data tier. SQLi
 
 ## Root CLI Shortcuts (`npm run ...`)
 
-The root `package.json` provides single-command shortcuts for all developer workflows:
+The root `package.json` provides clean Docker Compose shortcuts for all development, execution, and log monitoring workflows:
 
 | Command | Action |
 | :--- | :--- |
-| `npm run server:start` | Starts the FastAPI backend production server |
-| `npm run server:start:show` | Starts the FastAPI backend server with `--reload` and live logs |
-| `npm run server:build` | Creates Python virtual environment and installs backend dependencies |
-| `npm run server:test` | Executes the complete `pytest` automated test suite |
-| `npm run server:ingest` | Runs the ingestion pipeline to seed January 2026 data into Neon |
-| `npm run client:start` | Starts the Vite React frontend development server on `:3000` |
-| `npm run client:build` | Builds the production React bundle in `frontend/dist/` |
-| `npm run dev` | Runs both Backend and Frontend concurrently in one terminal |
-| `npm run install:all` | Installs dependencies for both Backend and Frontend |
-| `npm run docker:up` | Boots the application using Docker Compose |
-| `npm run docker:down` | Stops Docker Compose containers |
+| `npm run server:start` | `docker compose up -d` (Boots backend & frontend containers in background) |
+| `npm run server:build` | `docker compose up --build -d` (Rebuilds images and boots in background) |
+| `npm run server:show` | `docker compose up` (Boots containers with attached terminal output) |
+| `npm run server:build:show` | `docker compose up --build` (Rebuilds and boots with attached output) |
+| `npm run server:stop` | `docker compose down --remove-orphans` (Stops and removes containers) |
+| `npm run server:logs` | `docker compose logs -f` (Follows live logs from all services) |
+| `npm run server:logs:backend` | `docker compose logs -f backend` (Follows FastAPI backend logs) |
+| `npm run server:logs:frontend` | `docker compose logs -f frontend` (Follows React frontend logs) |
+| `npm run server:test` | `docker compose exec backend pytest -v` (Runs test suite inside backend container) |
+| `npm test` | Runs the test suite via `npm run server:test` |
 
 ---
 
@@ -222,30 +221,25 @@ For any delivery day $D$:
 
 ## How to Start the Application Locally
 
-### Option 1: Using Root NPM Scripts (Fastest)
-
 ```bash
-# 1. Install dependencies
-npm run install:all
+# Start both backend and frontend containers (detached)
+npm run server:start
 
-# 2. Start both Backend & Frontend together
-npm run dev
+# Or start with live output
+npm run server:show
+
+# Rebuild containers after code modifications
+npm run server:build
+
+# View live backend logs
+npm run server:logs:backend
+
+# Stop all containers
+npm run server:stop
 ```
 
 - **Frontend:** [http://localhost:3000](http://localhost:3000)
-- **Backend API:** [http://localhost:8000/docs](http://localhost:8000/docs)
-
----
-
-### Option 2: Single-Command Docker Compose
-
-```bash
-# Make sure .env has your DATABASE_URL
-docker compose up --build
-```
-
-- **Frontend:** [http://localhost:3000](http://localhost:3000)
-- **Backend API:** [http://localhost:8000/docs](http://localhost:8000/docs)
+- **Backend API & Swagger:** [http://localhost:8000/docs](http://localhost:8000/docs)
 
 ---
 
