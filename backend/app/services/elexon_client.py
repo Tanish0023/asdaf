@@ -2,9 +2,9 @@ import httpx
 import logging
 import asyncio
 from datetime import datetime, timedelta
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 
-from backend.app.config import ELEXON_BASE_URL
+from app.config import ELEXON_BASE_URL
 
 logger = logging.getLogger(__name__)
 

@@ -1,0 +1,8 @@
+[tool.vercel]
+entrypoint = "app/main.py"
+
+[project]
+name = "gridbricks-windpulse-api"
+version = "1.0.0"
+description = "UK Wholesale Day-Ahead Renewable Generation Forecast & Accuracy Evaluation API"
+requires-python = ">=3.12"

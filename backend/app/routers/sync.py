@@ -1,9 +1,9 @@
 from fastapi import APIRouter, HTTPException, status
 from datetime import datetime
 import logging
-from backend.app.schemas import SyncResponse
-from backend.app.services.elexon_client import ElexonClient, ElexonConnectionError
-from backend.app.services.data_store import DataStore
+from app.schemas import SyncResponse
+from app.services.elexon_client import ElexonClient, ElexonConnectionError
+from app.services.data_store import DataStore
 
 router = APIRouter(prefix="/api/v1", tags=["sync"])
 logger = logging.getLogger(__name__)

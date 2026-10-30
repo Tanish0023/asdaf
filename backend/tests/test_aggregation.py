@@ -1,7 +1,7 @@
 import pytest
-from backend.app.services.data_store import DataStore
-from backend.app.database import init_db, get_db
-from backend.app.models import ActualWind
+from app.services.data_store import DataStore
+from app.database import init_db, get_db
+from app.models import ActualWind
 
 TEST_DATE = "2099-01-10"
 

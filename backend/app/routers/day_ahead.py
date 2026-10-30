@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Query, HTTPException
-from backend.app.schemas import DayAheadResponse
-from backend.app.services.analytics import AnalyticsService
-from backend.app.config import DEFAULT_CUTOFF_TIME
+from app.schemas import DayAheadResponse
+from app.services.analytics import AnalyticsService
+from app.config import DEFAULT_CUTOFF_TIME
 
 router = APIRouter(prefix="/api/v1", tags=["day-ahead"])
 

@@ -2,8 +2,8 @@ from fastapi import APIRouter, Query, Response
 from fastapi.responses import StreamingResponse
 import io
 import csv
-from backend.app.services.analytics import AnalyticsService
-from backend.app.config import DEFAULT_CUTOFF_TIME, ASSESSMENT_START_DATE, ASSESSMENT_END_DATE
+from app.services.analytics import AnalyticsService
+from app.config import DEFAULT_CUTOFF_TIME, ASSESSMENT_START_DATE, ASSESSMENT_END_DATE
 
 router = APIRouter(prefix="/api/v1", tags=["export"])
 

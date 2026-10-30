@@ -1,9 +1,8 @@
 import pytest
-import numpy as np
-from backend.app.services.analytics import AnalyticsService
-from backend.app.services.data_store import DataStore
-from backend.app.database import init_db
-from backend.app.schemas import BalancingCalcRequest
+from app.services.analytics import AnalyticsService
+from app.services.data_store import DataStore
+from app.database import init_db
+from app.schemas import BalancingCalcRequest
 
 @pytest.fixture(autouse=True)
 def setup_test_db():

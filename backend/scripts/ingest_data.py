@@ -7,9 +7,9 @@ from pathlib import Path
 # Add project root to sys.path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from backend.app.database import init_db
-from backend.app.services.elexon_client import ElexonClient
-from backend.app.services.data_store import DataStore
+from app.database import init_db
+from app.services.elexon_client import ElexonClient
+from app.services.data_store import DataStore
 
 logging.basicConfig(
     level=logging.INFO,

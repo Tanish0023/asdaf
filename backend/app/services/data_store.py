@@ -1,14 +1,14 @@
 from datetime import datetime, timedelta
-from typing import List, Dict, Any, Tuple, Optional
+from typing import List, Dict, Any, Tuple
 from collections import defaultdict
 import logging
 import time
 
-from sqlalchemy import select, func, desc, and_, text
+from sqlalchemy import text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
-from backend.app.database import get_db
-from backend.app.models import ActualWind, ForecastWind, SyncLog
+from app.database import get_db
+from app.models import ActualWind, ForecastWind, SyncLog
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +26,7 @@ class DataStore:
         _CACHE["sync_status"] = None
         _CACHE["available_dates"] = None
         try:
-            from backend.app.services.analytics import clear_analytics_cache
+            from app.services.analytics import clear_analytics_cache
             clear_analytics_cache()
         except ImportError:
             pass

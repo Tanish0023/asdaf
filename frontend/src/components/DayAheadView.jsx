@@ -1,17 +1,16 @@
-import React, { useState, useEffect } from "react"
+import { useState, useEffect } from "react"
 import { useFormik } from "formik"
 import { z } from "zod"
 import {
-  AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, Legend, ReferenceLine
+  AreaChart, Area, XAxis, YAxis, CartesianGrid,
+  Tooltip, ResponsiveContainer
 } from "recharts"
 import {
   Calendar, Clock, AlertTriangle, ArrowUpRight, ArrowDownRight,
-  Info, CheckCircle, TrendingUp, Zap, HelpCircle
+  Info, TrendingUp
 } from "lucide-react"
 
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "./ui/card"
-import { Button } from "./ui/button"
 import { Select } from "./ui/select"
 import { Badge } from "./ui/badge"
 import { Alert, AlertTitle, AlertDescription } from "./ui/alert"

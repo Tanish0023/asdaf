@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react"
+import { useState, useEffect } from "react"
 import { useFormik } from "formik"
 import { z } from "zod"
 import {
@@ -7,13 +7,11 @@ import {
 } from "recharts"
 import {
   BarChart3, TrendingUp, AlertCircle, Calendar, Clock,
-  Gauge, Target, Activity, CheckCircle2, ChevronRight
+  Gauge, Target, Activity
 } from "lucide-react"
 
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "./ui/card"
-import { Button } from "./ui/button"
 import { Select } from "./ui/select"
-import { Badge } from "./ui/badge"
 import { Alert, AlertTitle, AlertDescription } from "./ui/alert"
 
 // Zod Validation Schema

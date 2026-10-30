@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from "react"
+import { useState, useEffect } from "react"
 import {
   Calendar, BarChart3, ShieldCheck, Database,
-  TrendingUp, RefreshCw, CheckCircle2, AlertTriangle, FileSpreadsheet
+  CheckCircle2, AlertTriangle
 } from "lucide-react"
 
 import { Header } from "./components/Header"

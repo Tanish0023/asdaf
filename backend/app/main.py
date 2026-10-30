@@ -1,11 +1,22 @@
+import os
+import sys
+from pathlib import Path
+
+# Ensure the backend directory is in sys.path so 'app.*' imports work in all environments
+CURRENT_DIR = Path(__file__).resolve().parent  # backend/app
+BACKEND_DIR = CURRENT_DIR.parent               # backend
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))
+
 from fastapi import FastAPI
+from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import logging
 
-from backend.app.database import init_db
-from backend.app.services.data_store import DataStore
-from backend.app.routers import dates, day_ahead, metrics, sync, export
+from app.database import init_db
+from app.services.data_store import DataStore
+from app.routers import dates, day_ahead, metrics, sync, export
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("gridbricks.api")
@@ -27,6 +38,9 @@ app = FastAPI(
     title="GridBricks WindPulse API",
     description="UK Wholesale Day-Ahead Renewable Generation Forecast & Accuracy Evaluation Platform",
     version="1.0.0",
+    docs_url="/api/docs",
+    redoc_url="/api/redoc",
+    openapi_url="/api/openapi.json",
     lifespan=lifespan
 )
 
@@ -47,6 +61,7 @@ app.include_router(sync.router)
 app.include_router(export.router)
 
 @app.get("/health")
+@app.get("/api/health")
 def health_check():
     store = DataStore()
     status = store.get_sync_status()
@@ -57,9 +72,23 @@ def health_check():
     }
 
 @app.get("/")
+@app.get("/api")
 def root():
     return {
-        "message": "Welcome to GridBricks WindPulse API. Explore /docs for OpenAPI documentation.",
+        "message": "Welcome to GridBricks WindPulse API. Explore /api/docs for OpenAPI documentation.",
         "version": "1.0.0",
         "assessment_scope": "UK National Wind Generation Actuals & Forecasts (January 2026)"
     }
+
+@app.get("/docs", include_in_schema=False)
+def docs_redirect():
+    return RedirectResponse(url="/api/docs")
+
+@app.get("/redoc", include_in_schema=False)
+def redoc_redirect():
+    return RedirectResponse(url="/api/redoc")
+
+@app.get("/openapi.json", include_in_schema=False)
+def openapi_redirect():
+    return RedirectResponse(url="/api/openapi.json")
+

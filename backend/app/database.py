@@ -3,8 +3,8 @@ from sqlalchemy.orm import sessionmaker, Session
 from contextlib import contextmanager
 import logging
 
-from backend.app.config import get_database_url
-from backend.app.models import Base
+from app.config import get_database_url
+from app.models import Base
 
 logger = logging.getLogger(__name__)
 
