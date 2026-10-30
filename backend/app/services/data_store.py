@@ -8,7 +8,7 @@ from sqlalchemy import text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.database import get_db
-from app.models import ActualWind, ForecastWind, SyncLog
+from app.models import ActualWind, ForecastWind
 
 logger = logging.getLogger(__name__)
 
@@ -94,20 +94,6 @@ class DataStore:
         self.invalidate_cache()
         return total_upserted
 
-    def log_sync(self, dataset: str, count: int, status: str, details: str = ""):
-        now_str = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-        with get_db() as session:
-            log_entry = SyncLog(
-                dataset=dataset,
-                synced_at=now_str,
-                records_count=count,
-                status=status,
-                details=details
-            )
-            session.add(log_entry)
-            session.commit()
-        self.invalidate_cache()
-
     def get_sync_status(self) -> Dict[str, Any]:
         now = time.time()
         if _CACHE["sync_status"] and (now - _CACHE["sync_status_time"] < CACHE_TTL):
@@ -116,15 +102,13 @@ class DataStore:
         with get_db() as session:
             sql = text("""
                 SELECT
-                    (SELECT max(synced_at) FROM sync_log WHERE status = 'SUCCESS') as latest_sync,
                     (SELECT count(*) FROM actual_wind) as actual_count,
                     (SELECT count(*) FROM forecast_wind) as forecast_count
             """)
             row = session.execute(sql).fetchone()
             res = {
-                "latest_sync": row[0] if row else None,
-                "actual_count": int(row[1]) if row and row[1] is not None else 0,
-                "forecast_count": int(row[2]) if row and row[2] is not None else 0
+                "actual_count": int(row[0]) if row and row[0] is not None else 0,
+                "forecast_count": int(row[1]) if row and row[1] is not None else 0
             }
             _CACHE["sync_status"] = res
             _CACHE["sync_status_time"] = now

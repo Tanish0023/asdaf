@@ -7,7 +7,6 @@ class DateOptionsResponse(BaseModel):
     default_delivery_date: str
     default_decision_date: str
     decision_cutoff: str = "11:00"
-    latest_sync_time: Optional[str] = None
     total_actual_records: int
     total_forecast_records: int
 

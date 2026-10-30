@@ -17,7 +17,6 @@ def get_available_dates():
         default_delivery_date=date_info["default_delivery_date"],
         default_decision_date=date_info["default_decision_date"],
         decision_cutoff=FIXED_DECISION_CUTOFF,
-        latest_sync_time=status["latest_sync"],
         total_actual_records=status["actual_count"],
         total_forecast_records=status["forecast_count"]
     )

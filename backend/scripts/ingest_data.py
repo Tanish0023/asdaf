@@ -37,21 +37,17 @@ async def main():
     try:
         fuel_records = await client.fetch_dataset_in_chunks("FUELHH", start_dt, end_dt, chunk_days=7)
         count_act = store.upsert_actuals(fuel_records)
-        store.log_sync("FUELHH", count_act, "SUCCESS", f"Ingested {count_act} actual wind records")
         logger.info(f"Successfully ingested {count_act} actual wind records.")
     except Exception as e:
         logger.error(f"FUELHH ingestion failed: {e}")
-        store.log_sync("FUELHH", 0, "FAILED", str(e))
 
     logger.info(f"Ingesting WINDFOR forecasts from {start_dt} to {end_dt}...")
     try:
         wind_records = await client.fetch_dataset_in_chunks("WINDFOR", start_dt, end_dt, chunk_days=5)
         count_for = store.upsert_forecasts(wind_records)
-        store.log_sync("WINDFOR", count_for, "SUCCESS", f"Ingested {count_for} forecast records")
         logger.info(f"Successfully ingested {count_for} forecast records.")
     except Exception as e:
         logger.error(f"WINDFOR ingestion failed: {e}")
-        store.log_sync("WINDFOR", 0, "FAILED", str(e))
 
     status = store.get_sync_status()
     logger.info(f"Ingestion complete! Final database totals: {status['actual_count']} actuals, {status['forecast_count']} forecasts.")

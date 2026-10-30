@@ -33,8 +33,8 @@ The deployed instance connects to a pre-loaded Neon PostgreSQL database containi
 │       Neon Serverless PostgreSQL    │   │         Elexon BMRS API           │
 │  - actual_wind: FUELHH actuals      │   │  - FUELHH (30-min actual wind)    │
 │  - forecast_wind: WINDFOR forecasts │   │  - WINDFOR (hourly wind forecasts)│
-│  - sync_log: Ingestion record       │   │  Loaded once via ingest_data.py   │
-└─────────────────────────────────────┘   └───────────────────────────────────┘
+└─────────────────────────────────────┘   │  Loaded once via ingest_data.py   │
+                                          └───────────────────────────────────┘
 ```
 
 ### Technology Stack
@@ -86,7 +86,7 @@ Gridbricks/
 │   │   ├── config.py                   # Environment variable loader and fixed 11:00 UTC decision cutoff constant
 │   │   ├── database.py                 # SQLAlchemy engine configuration and pooled session provider
 │   │   ├── main.py                     # FastAPI application factory, lifespan handler, CORS, and root routes
-│   │   ├── models.py                   # SQLAlchemy ORM models for actual_wind, forecast_wind, and sync_log
+│   │   ├── models.py                   # SQLAlchemy ORM models for actual_wind and forecast_wind
 │   │   ├── schemas.py                  # Pydantic response models for schedules, metrics, and profiles
 │   │   ├── routers/
 │   │   │   ├── __init__.py             # Routers package marker

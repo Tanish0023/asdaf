@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, Float, Text, Index
+from sqlalchemy import Column, String, Integer, Float, Index
 from sqlalchemy.orm import declarative_base
 
 Base = declarative_base()
@@ -28,13 +28,3 @@ class ForecastWind(Base):
         Index("idx_forecast_lookup", "start_time", "publish_time"),
         Index("idx_forecast_publish_time", "publish_time"),
     )
-
-class SyncLog(Base):
-    __tablename__ = "sync_log"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    dataset = Column(String(50), nullable=False)
-    synced_at = Column(String(30), nullable=False)
-    records_count = Column(Integer, nullable=False)
-    status = Column(String(20), nullable=False)
-    details = Column(Text, nullable=True)
