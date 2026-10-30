@@ -1,0 +1,19 @@
+[tool.vercel]
+entrypoint = "backend/app/main.py"
+
+[project]
+name = "gridbricks-windpulse"
+version = "1.0.0"
+description = "UK Wholesale Day-Ahead Renewable Generation Forecast & Accuracy Evaluation API"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.110.0",
+    "uvicorn[standard]>=0.28.0",
+    "pydantic>=2.6.0",
+    "pandas>=2.2.0",
+    "numpy>=1.26.0",
+    "httpx>=0.27.0",
+    "sqlalchemy>=2.0.28",
+    "psycopg[binary]>=3.1.18",
+    "python-dotenv>=1.0.1"
+]
