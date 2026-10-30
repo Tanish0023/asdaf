@@ -1,6 +1,4 @@
 import { useState, useEffect } from "react"
-import { useFormik } from "formik"
-import { z } from "zod"
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer
@@ -15,47 +13,27 @@ import { Select } from "./ui/select"
 import { Badge } from "./ui/badge"
 import { Alert, AlertTitle, AlertDescription } from "./ui/alert"
 
-// Zod Validation Schema
-const filterSchema = z.object({
-  deliveryDate: z.string().min(1, "Delivery date is required"),
-  cutoffTime: z.string().min(1, "Cutoff time is required"),
-})
-
-export function DayAheadView({ availableDates, cutoffOptions }) {
+export function DayAheadView({ availableDates }) {
   const [loading, setLoading] = useState(false)
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
+  const [deliveryDate, setDeliveryDate] = useState(
+    availableDates?.default_delivery_date || "2026-01-15"
+  )
 
-  const formik = useFormik({
-    initialValues: {
-      deliveryDate: availableDates?.default_delivery_date || "2026-01-15",
-      cutoffTime: "11:00",
-    },
-    validate: (values) => {
-      try {
-        filterSchema.parse(values)
-        return {}
-      } catch (err) {
-        if (err instanceof z.ZodError) {
-          const errors = {}
-          err.errors.forEach((e) => {
-            if (e.path[0]) errors[e.path[0]] = e.message
-          })
-          return errors
-        }
-        return {}
-      }
-    },
-    onSubmit: (values) => {
-      fetchDayAhead(values.deliveryDate, values.cutoffTime)
-    },
-  })
+  // Update default delivery date when availableDates finishes loading
+  useEffect(() => {
+    if (availableDates?.default_delivery_date && !deliveryDate) {
+      setDeliveryDate(availableDates.default_delivery_date)
+    }
+  }, [availableDates, deliveryDate])
 
-  const fetchDayAhead = async (deliveryDate, cutoffTime) => {
+  const fetchDayAhead = async (targetDate) => {
+    if (!targetDate) return
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(`/api/v1/day-ahead?delivery_date=${deliveryDate}&cutoff_time=${cutoffTime}`)
+      const res = await fetch(`/api/v1/day-ahead?delivery_date=${targetDate}`)
       if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`)
       const result = await res.json()
       setData(result)
@@ -67,10 +45,8 @@ export function DayAheadView({ availableDates, cutoffOptions }) {
   }
 
   useEffect(() => {
-    if (formik.values.deliveryDate) {
-      fetchDayAhead(formik.values.deliveryDate, formik.values.cutoffTime)
-    }
-  }, [formik.values.deliveryDate, formik.values.cutoffTime])
+    fetchDayAhead(deliveryDate)
+  }, [deliveryDate])
 
   const chartData = data?.hourly_records?.map((r) => ({
     hour: r.hour,
@@ -135,23 +111,20 @@ export function DayAheadView({ availableDates, cutoffOptions }) {
 
   return (
     <div className="space-y-6">
-      {/* Control Panel Form (Formik + Zod) */}
+      {/* Control Panel */}
       <Card className="bg-slate-900/60 border-slate-800">
         <CardContent className="p-4 sm:p-5">
-          <form onSubmit={formik.handleSubmit} className="flex flex-wrap items-end gap-4">
+          <div className="flex flex-wrap items-center justify-between gap-4">
             {/* Delivery Date Selection */}
-            <div className="flex-1 min-w-[200px] space-y-1.5">
+            <div className="w-full sm:w-auto sm:min-w-[260px] space-y-1.5">
               <label htmlFor="deliveryDate" className="text-xs font-medium text-slate-300 flex items-center gap-1.5">
                 <Calendar className="h-3.5 w-3.5 text-emerald-400" />
                 Target Delivery Date (Day D)
               </label>
               <Select
                 id="deliveryDate"
-                name="deliveryDate"
-                value={formik.values.deliveryDate}
-                onChange={formik.handleChange}
-                onBlur={formik.handleBlur}
-                className={formik.errors.deliveryDate && formik.touched.deliveryDate ? "border-rose-500" : ""}
+                value={deliveryDate}
+                onChange={(e) => setDeliveryDate(e.target.value)}
               >
                 {availableDates?.delivery_dates?.map((d) => (
                   <option key={d} value={d} className="bg-slate-900 text-white">
@@ -159,41 +132,16 @@ export function DayAheadView({ availableDates, cutoffOptions }) {
                   </option>
                 ))}
               </Select>
-              {formik.touched.deliveryDate && formik.errors.deliveryDate && (
-                <p className="text-[11px] text-rose-400">{formik.errors.deliveryDate}</p>
-              )}
             </div>
 
-            {/* Decision Cutoff Time Selection */}
-            <div className="flex-1 min-w-[260px] space-y-1.5">
-              <label htmlFor="cutoffTime" className="text-xs font-medium text-slate-300 flex items-center gap-1.5">
-                <Clock className="h-3.5 w-3.5 text-sky-400" />
-                Decision Cutoff Time on D-1
-              </label>
-              <Select
-                id="cutoffTime"
-                name="cutoffTime"
-                value={formik.values.cutoffTime}
-                onChange={formik.handleChange}
-                onBlur={formik.handleBlur}
-              >
-                {cutoffOptions?.map((opt) => (
-                  <option key={opt.value} value={opt.value} className="bg-slate-900 text-white">
-                    {opt.label}
-                  </option>
-                ))}
-              </Select>
-            </div>
-
-            {/* Context Badge */}
-            <div className="hidden lg:flex items-center text-xs text-slate-400 bg-slate-950/60 px-3.5 py-2 rounded-lg border border-slate-800/80 mb-0.5">
-              <Info className="h-4 w-4 text-emerald-400 mr-2 shrink-0" />
+            {/* Decision Cutoff Plain Text Banner */}
+            <div className="flex items-center text-xs text-slate-300 bg-slate-950/80 px-4 py-2.5 rounded-lg border border-slate-800">
+              <Clock className="h-4 w-4 text-emerald-400 mr-2 shrink-0" />
               <span>
-                Procurement Decision: <strong className="text-slate-200">{data?.decision_date}</strong> before{" "}
-                <strong className="text-emerald-400">{data?.cutoff_time} UTC</strong>
+                Decision Cutoff: <strong className="text-emerald-400">{data?.cutoff_time || "11:00"} UTC</strong> on D-1 (<strong className="text-slate-200">{data?.decision_date || "D-1"}</strong>)
               </span>
             </div>
-          </form>
+          </div>
         </CardContent>
       </Card>
 
@@ -214,7 +162,7 @@ export function DayAheadView({ availableDates, cutoffOptions }) {
             <span className="text-xs font-normal text-slate-400">MW</span>
           </div>
           <div className="text-[10px] text-slate-500 mt-0.5">
-            Peak: {summary.max_forecast_mw?.toLocaleString()} MW
+            Peak: {summary.max_forecast_mw?.toLocaleString() || "—"} MW
           </div>
         </Card>
 
@@ -245,7 +193,7 @@ export function DayAheadView({ availableDates, cutoffOptions }) {
             <span className="text-xs font-normal text-slate-400">MW</span>
           </div>
           <div className="text-[10px] text-slate-500 mt-0.5">
-            {summary.mbe_mw > 0 ? "Over-forecast (Shortfall)" : "Under-forecast (Surplus)"}
+            {summary.mbe_mw > 0 ? "Over-forecast (F > A)" : "Under-forecast (F < A)"}
           </div>
         </Card>
 

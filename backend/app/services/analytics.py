@@ -6,12 +6,12 @@ from collections import defaultdict
 import math
 
 from app.services.data_store import DataStore
+from app.config import FIXED_DECISION_CUTOFF
 from app.schemas import (
     HourlyDayAheadRecord, DayAheadSummary, DayAheadResponse,
     MetricsSummaryResponse, HourlyProfileItem, HourlyProfileResponse,
     DailyTimelineItem, DailyTimelineResponse,
-    ErrorDistributionItem, ErrorDistributionResponse,
-    BalancingCalcRequest, BalancingCalcResponse, BalancingHourlyItem
+    ErrorDistributionItem, ErrorDistributionResponse
 )
 
 _SCHEDULE_CACHE = {}
@@ -25,10 +25,10 @@ class AnalyticsService:
     def __init__(self, data_store: Optional[DataStore] = None):
         self.data_store = data_store or DataStore()
 
-    def get_day_ahead_schedule(self, delivery_date: str, cutoff_time: str = "11:00") -> DayAheadResponse:
+    def get_day_ahead_schedule(self, delivery_date: str, cutoff_time: str = FIXED_DECISION_CUTOFF) -> DayAheadResponse:
         """
         Calculates day-ahead forecast vs actual generation for 24 hours of delivery_date.
-        Cutoff is applied on day D-1 at cutoff_time.
+        Cutoff is applied on day D-1 at cutoff_time (default 11:00 UTC).
         Cached in-memory so repeated day lookups respond in < 10ms.
         """
         import time as _time
@@ -117,12 +117,12 @@ class AnalyticsService:
         self,
         start_date: str = "2026-01-01",
         end_date: str = "2026-01-31",
-        cutoff_time: str = "11:00"
+        cutoff_time: str = FIXED_DECISION_CUTOFF
     ) -> List[Dict[str, Any]]:
         """
         HIGH-PERFORMANCE ALIGNMENT:
-        Fetches all actuals and forecasts for the requested date range in just 2 queries,
-        then aligns all 744 hours in-memory in ~50ms.
+        Fetches all actuals and forecasts for the requested date range in 2 queries,
+        then aligns all hours in-memory.
         Cached in-memory so subsequent concurrent metrics queries respond in 0ms.
         """
         import time as _time
@@ -197,8 +197,7 @@ class AnalyticsService:
                         "forecast": round(for_gen, 2),
                         "publish_time": pub_time,
                         "error": err,
-                        "abs_error": abs(err),
-                        "shortfall": max(0.0, err)
+                        "abs_error": abs(err)
                     })
 
         _DATASET_CACHE[cache_key] = {"time": now, "data": all_points}
@@ -208,7 +207,7 @@ class AnalyticsService:
         self,
         start_date: str = "2026-01-01",
         end_date: str = "2026-01-31",
-        cutoff_time: str = "11:00"
+        cutoff_time: str = FIXED_DECISION_CUTOFF
     ) -> MetricsSummaryResponse:
         points = self._collect_aligned_dataset(start_date, end_date, cutoff_time)
 
@@ -217,15 +216,13 @@ class AnalyticsService:
                 mae=0.0, rmse=0.0, mbe=0.0, wape=0.0, mape=0.0,
                 accuracy_rate=0.0, p10_error=0.0, p50_error=0.0,
                 p90_error=0.0, p95_error=0.0, max_over_forecast=0.0,
-                max_under_forecast=0.0, p90_shortfall=0.0, p95_shortfall=0.0,
-                total_observations=0, start_date=start_date,
-                end_date=end_date, cutoff_time=cutoff_time
+                max_under_forecast=0.0, total_observations=0,
+                start_date=start_date, end_date=end_date, cutoff_time=cutoff_time
             )
 
         errors = np.array([p["error"] for p in points])
         abs_errors = np.array([p["abs_error"] for p in points])
         actuals = np.array([p["actual"] for p in points])
-        shortfalls = np.array([p["shortfall"] for p in points])
 
         mae = float(np.mean(abs_errors))
         rmse = float(np.sqrt(np.mean(errors ** 2)))
@@ -248,9 +245,6 @@ class AnalyticsService:
         p90 = float(np.percentile(errors, 90))
         p95 = float(np.percentile(errors, 95))
 
-        p90_shortfall = float(np.percentile(shortfalls, 90))
-        p95_shortfall = float(np.percentile(shortfalls, 95))
-
         return MetricsSummaryResponse(
             mae=round(mae, 2),
             rmse=round(rmse, 2),
@@ -264,8 +258,6 @@ class AnalyticsService:
             p95_error=round(p95, 2),
             max_over_forecast=round(float(np.max(errors)), 2),
             max_under_forecast=round(float(np.min(errors)), 2),
-            p90_shortfall=round(p90_shortfall, 2),
-            p95_shortfall=round(p95_shortfall, 2),
             total_observations=len(points),
             start_date=start_date,
             end_date=end_date,
@@ -276,7 +268,7 @@ class AnalyticsService:
         self,
         start_date: str = "2026-01-01",
         end_date: str = "2026-01-31",
-        cutoff_time: str = "11:00"
+        cutoff_time: str = FIXED_DECISION_CUTOFF
     ) -> HourlyProfileResponse:
         points = self._collect_aligned_dataset(start_date, end_date, cutoff_time)
         df = pd.DataFrame(points)
@@ -312,7 +304,7 @@ class AnalyticsService:
         self,
         start_date: str = "2026-01-01",
         end_date: str = "2026-01-31",
-        cutoff_time: str = "11:00"
+        cutoff_time: str = FIXED_DECISION_CUTOFF
     ) -> DailyTimelineResponse:
         points = self._collect_aligned_dataset(start_date, end_date, cutoff_time)
         if not points:
@@ -345,7 +337,7 @@ class AnalyticsService:
         self,
         start_date: str = "2026-01-01",
         end_date: str = "2026-01-31",
-        cutoff_time: str = "11:00",
+        cutoff_time: str = FIXED_DECISION_CUTOFF,
         num_bins: int = 16
     ) -> ErrorDistributionResponse:
         points = self._collect_aligned_dataset(start_date, end_date, cutoff_time)
@@ -388,77 +380,4 @@ class AnalyticsService:
             mean_error=round(mean_err, 2),
             std_dev=round(std_err, 2),
             cutoff_time=cutoff_time
-        )
-
-    def calculate_balancing_risk(
-        self,
-        req: BalancingCalcRequest
-    ) -> BalancingCalcResponse:
-        """
-        Computes expected thermal procurement and quantified balancing buffer.
-        """
-        day_ahead = self.get_day_ahead_schedule(req.delivery_date, req.cutoff_time)
-        metrics = self.compute_metrics_summary(
-            start_date="2026-01-01",
-            end_date="2026-01-31",
-            cutoff_time=req.cutoff_time
-        )
-
-        # Select reserve buffer based on confidence level
-        if req.confidence_level >= 0.95:
-            reserve_buffer_mw = metrics.p95_shortfall
-        else:
-            reserve_buffer_mw = metrics.p90_shortfall
-
-        # Safety fallback if buffer is zero or data small
-        if reserve_buffer_mw <= 0:
-            reserve_buffer_mw = metrics.mae * 1.5
-
-        hourly_items: List[BalancingHourlyItem] = []
-        forecast_wind_list = []
-
-        for r in day_ahead.hourly_records:
-            f_wind = r.forecast_generation or 0.0
-            a_wind = r.actual_generation
-            forecast_wind_list.append(f_wind)
-
-            # Base thermal requirement is what is needed after subtracting expected wind
-            base_thermal = max(0.0, req.customer_demand_mw - f_wind)
-            total_thermal = round(base_thermal + reserve_buffer_mw, 2)
-
-            net_pos = None
-            if a_wind is not None:
-                total_supply = total_thermal + a_wind
-                net_pos = round(total_supply - req.customer_demand_mw, 2)
-
-            hourly_items.append(BalancingHourlyItem(
-                hour=r.hour,
-                startTime=r.startTime,
-                demand_mw=req.customer_demand_mw,
-                forecast_wind_mw=f_wind,
-                actual_wind_mw=a_wind,
-                base_thermal_required_mw=round(base_thermal, 2),
-                reserve_buffer_mw=round(reserve_buffer_mw, 2),
-                total_thermal_procured_mw=total_thermal,
-                net_position_with_actual_mw=net_pos
-            ))
-
-        avg_f = float(np.mean(forecast_wind_list)) if forecast_wind_list else 0.0
-        min_f = float(np.min(forecast_wind_list)) if forecast_wind_list else 0.0
-        max_f = float(np.max(forecast_wind_list)) if forecast_wind_list else 0.0
-        expected_base = max(0.0, req.customer_demand_mw - avg_f)
-
-        return BalancingCalcResponse(
-            delivery_date=req.delivery_date,
-            decision_date=day_ahead.decision_date,
-            cutoff_time=req.cutoff_time,
-            customer_demand_mw=req.customer_demand_mw,
-            confidence_level=req.confidence_level,
-            avg_forecast_wind_mw=round(avg_f, 2),
-            min_forecast_wind_mw=round(min_f, 2),
-            max_forecast_wind_mw=round(max_f, 2),
-            expected_base_thermal_mw=round(expected_base, 2),
-            recommended_reserve_buffer_mw=round(reserve_buffer_mw, 2),
-            total_thermal_procurement_mw=round(expected_base + reserve_buffer_mw, 2),
-            hourly_breakdown=hourly_items
         )

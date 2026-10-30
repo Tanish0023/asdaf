@@ -1,17 +1,12 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from typing import List, Optional
-
-class CutoffOption(BaseModel):
-    value: str
-    label: str
-    description: str
 
 class DateOptionsResponse(BaseModel):
     decision_dates: List[str]
     delivery_dates: List[str]
     default_delivery_date: str
     default_decision_date: str
-    cutoff_options: List[CutoffOption]
+    decision_cutoff: str = "11:00"
     latest_sync_time: Optional[str] = None
     total_actual_records: int
     total_forecast_records: int
@@ -59,8 +54,6 @@ class MetricsSummaryResponse(BaseModel):
     p95_error: float
     max_over_forecast: float
     max_under_forecast: float
-    p90_shortfall: float
-    p95_shortfall: float
     total_observations: int
     start_date: str
     end_date: str
@@ -106,41 +99,3 @@ class ErrorDistributionResponse(BaseModel):
     mean_error: float
     std_dev: float
     cutoff_time: str
-
-class BalancingHourlyItem(BaseModel):
-    hour: str
-    startTime: str
-    demand_mw: float
-    forecast_wind_mw: float
-    actual_wind_mw: Optional[float]
-    base_thermal_required_mw: float
-    reserve_buffer_mw: float
-    total_thermal_procured_mw: float
-    net_position_with_actual_mw: Optional[float]
-
-class BalancingCalcRequest(BaseModel):
-    customer_demand_mw: float = Field(25000.0, ge=100.0, le=100000.0)
-    delivery_date: str
-    cutoff_time: str = "11:00"
-    confidence_level: float = Field(0.90, ge=0.50, le=0.99)
-
-class BalancingCalcResponse(BaseModel):
-    delivery_date: str
-    decision_date: str
-    cutoff_time: str
-    customer_demand_mw: float
-    confidence_level: float
-    avg_forecast_wind_mw: float
-    min_forecast_wind_mw: float
-    max_forecast_wind_mw: float
-    expected_base_thermal_mw: float
-    recommended_reserve_buffer_mw: float
-    total_thermal_procurement_mw: float
-    hourly_breakdown: List[BalancingHourlyItem]
-
-class SyncResponse(BaseModel):
-    status: str
-    actuals_synced: int
-    forecasts_synced: int
-    message: str
-    synced_at: str

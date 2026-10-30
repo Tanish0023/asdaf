@@ -16,7 +16,7 @@ import logging
 
 from app.database import init_db
 from app.services.data_store import DataStore
-from app.routers import dates, day_ahead, metrics, sync, export
+from app.routers import dates, day_ahead, metrics
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("gridbricks.api")
@@ -57,8 +57,6 @@ app.add_middleware(
 app.include_router(dates.router)
 app.include_router(day_ahead.router)
 app.include_router(metrics.router)
-app.include_router(sync.router)
-app.include_router(export.router)
 
 @app.get("/health")
 @app.get("/api/health")

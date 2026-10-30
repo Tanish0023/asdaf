@@ -32,6 +32,8 @@ def get_database_url() -> str:
     return url
 
 ELEXON_BASE_URL = os.getenv("ELEXON_BASE_URL", "https://data.elexon.co.uk/bmrs/api/v1")
-DEFAULT_CUTOFF_TIME = "11:00"  # UK wholesale day-ahead gate closure (11:00 UTC)
+FIXED_DECISION_CUTOFF = "11:00"  # Fixed decision cutoff time on D-1 (11:00 UTC)
+DEFAULT_CUTOFF_TIME = FIXED_DECISION_CUTOFF
 ASSESSMENT_START_DATE = "2026-01-01"
 ASSESSMENT_END_DATE = "2026-01-31"
+

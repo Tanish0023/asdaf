@@ -2,6 +2,7 @@ import pytest
 from app.services.data_store import DataStore
 from app.database import init_db, get_db
 from app.models import ForecastWind
+from app.config import FIXED_DECISION_CUTOFF
 
 TEST_DELIVERY_DATE = "2099-01-15"
 TEST_DECISION_DATE = "2099-01-14"
@@ -21,7 +22,7 @@ def test_forecast_alignment_selects_latest_before_cutoff():
     store = DataStore()
     target_hour = f"{TEST_DELIVERY_DATE}T14:00:00Z"
 
-    # Insert three forecasts for target_hour:
+    # Insert four forecasts for target_hour:
     # 1. Published 2099-01-14T06:00:00Z (before cutoff, early) -> gen = 5000
     # 2. Published 2099-01-14T10:30:00Z (before cutoff, latest valid) -> gen = 5500
     # 3. Published 2099-01-14T11:30:00Z (AFTER cutoff!) -> gen = 6000
@@ -34,8 +35,7 @@ def test_forecast_alignment_selects_latest_before_cutoff():
     ]
     store.upsert_forecasts(forecasts)
 
-    # Query with default 11:00 cutoff
-    hourly_forecasts, cutoff_dt, dec_date = store.get_day_ahead_forecasts(TEST_DELIVERY_DATE, "11:00")
+    hourly_forecasts, cutoff_dt, dec_date = store.get_day_ahead_forecasts(TEST_DELIVERY_DATE, FIXED_DECISION_CUTOFF)
 
     assert dec_date == TEST_DECISION_DATE
     assert cutoff_dt == f"{TEST_DECISION_DATE}T11:00:00Z"
@@ -45,21 +45,22 @@ def test_forecast_alignment_selects_latest_before_cutoff():
     assert selected["generation"] == 5500.0
     assert selected["publishTime"] == f"{TEST_DECISION_DATE}T10:30:00Z"
 
-def test_forecast_alignment_with_later_cutoff():
+def test_forecast_alignment_boundary_at_cutoff():
     store = DataStore()
     target_hour = f"{TEST_DELIVERY_DATE}T14:00:00Z"
 
+    # Forecast published exactly at 11:00:00Z vs 11:00:01Z
     forecasts = [
-        {"publishTime": f"{TEST_DECISION_DATE}T10:30:00Z", "startTime": target_hour, "generation": 5500.0},
-        {"publishTime": f"{TEST_DECISION_DATE}T11:30:00Z", "startTime": target_hour, "generation": 6000.0},
+        {"publishTime": f"{TEST_DECISION_DATE}T11:00:00Z", "startTime": target_hour, "generation": 5800.0},
+        {"publishTime": f"{TEST_DECISION_DATE}T11:00:01Z", "startTime": target_hour, "generation": 6200.0},
     ]
     store.upsert_forecasts(forecasts)
 
-    # If trader uses 12:00 cutoff, 11:30 forecast becomes available
-    hourly_forecasts, cutoff_dt, _ = store.get_day_ahead_forecasts(TEST_DELIVERY_DATE, "12:00")
-    assert cutoff_dt == f"{TEST_DECISION_DATE}T12:00:00Z"
-    assert hourly_forecasts[target_hour]["generation"] == 6000.0
-    assert hourly_forecasts[target_hour]["publishTime"] == f"{TEST_DECISION_DATE}T11:30:00Z"
+    hourly_forecasts, cutoff_dt, _ = store.get_day_ahead_forecasts(TEST_DELIVERY_DATE, FIXED_DECISION_CUTOFF)
+    assert cutoff_dt == f"{TEST_DECISION_DATE}T11:00:00Z"
+    # Exactly at 11:00:00Z is valid (<=), after is excluded
+    assert hourly_forecasts[target_hour]["generation"] == 5800.0
+    assert hourly_forecasts[target_hour]["publishTime"] == f"{TEST_DECISION_DATE}T11:00:00Z"
 
 def test_forecast_alignment_strictly_excludes_future_forecasts():
     store = DataStore()
@@ -71,6 +72,6 @@ def test_forecast_alignment_strictly_excludes_future_forecasts():
     ]
     store.upsert_forecasts(forecasts)
 
-    hourly_forecasts, _, _ = store.get_day_ahead_forecasts(TEST_DELIVERY_DATE, "11:00")
+    hourly_forecasts, _, _ = store.get_day_ahead_forecasts(TEST_DELIVERY_DATE, FIXED_DECISION_CUTOFF)
     assert hourly_forecasts[target_hour]["generation"] is None
     assert hourly_forecasts[target_hour]["publishTime"] is None

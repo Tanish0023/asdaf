@@ -1,65 +1,32 @@
 import { useState, useEffect } from "react"
-import { useFormik } from "formik"
-import { z } from "zod"
 import {
   BarChart, Bar, LineChart, Line, ComposedChart, XAxis, YAxis,
   CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell, ReferenceLine
 } from "recharts"
 import {
-  BarChart3, TrendingUp, AlertCircle, Calendar, Clock,
-  Gauge, Target, Activity
+  BarChart3, TrendingUp, AlertCircle, Calendar,
+  Gauge, Target, Activity, Clock
 } from "lucide-react"
 
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "./ui/card"
 import { Select } from "./ui/select"
 import { Alert, AlertTitle, AlertDescription } from "./ui/alert"
 
-// Zod Validation Schema
-const filterSchema = z.object({
-  startDate: z.string().min(1, "Start date required"),
-  endDate: z.string().min(1, "End date required"),
-  cutoffTime: z.string().min(1, "Cutoff time required"),
-})
-
-export function AccuracyView({ cutoffOptions }) {
+export function AccuracyView() {
   const [loading, setLoading] = useState(false)
+  const [startDate, setStartDate] = useState("2026-01-01")
+  const [endDate, setEndDate] = useState("2026-01-31")
   const [metrics, setMetrics] = useState(null)
   const [hourlyProfile, setHourlyProfile] = useState([])
   const [dailyTimeline, setDailyTimeline] = useState([])
   const [distribution, setDistribution] = useState(null)
   const [error, setError] = useState(null)
 
-  const formik = useFormik({
-    initialValues: {
-      startDate: "2026-01-01",
-      endDate: "2026-01-31",
-      cutoffTime: "11:00",
-    },
-    validate: (values) => {
-      try {
-        filterSchema.parse(values)
-        return {}
-      } catch (err) {
-        if (err instanceof z.ZodError) {
-          const errors = {}
-          err.errors.forEach((e) => {
-            if (e.path[0]) errors[e.path[0]] = e.message
-          })
-          return errors
-        }
-        return {}
-      }
-    },
-    onSubmit: (values) => {
-      fetchAllMetrics(values.startDate, values.endDate, values.cutoffTime)
-    },
-  })
-
-  const fetchAllMetrics = async (startDate, endDate, cutoffTime) => {
+  const fetchAllMetrics = async (start, end) => {
     setLoading(true)
     setError(null)
     try {
-      const q = `start_date=${startDate}&end_date=${endDate}&cutoff_time=${cutoffTime}`
+      const q = `start_date=${start}&end_date=${end}`
       const [resSummary, resProfile, resTimeline, resDist] = await Promise.all([
         fetch(`/api/v1/metrics/summary?${q}`),
         fetch(`/api/v1/metrics/hourly-profile?${q}`),
@@ -88,8 +55,8 @@ export function AccuracyView({ cutoffOptions }) {
   }
 
   useEffect(() => {
-    fetchAllMetrics(formik.values.startDate, formik.values.endDate, formik.values.cutoffTime)
-  }, [formik.values.startDate, formik.values.endDate, formik.values.cutoffTime])
+    fetchAllMetrics(startDate, endDate)
+  }, [startDate, endDate])
 
   // Custom Histogram Tooltip
   const DistTooltip = ({ active, payload }) => {
@@ -108,82 +75,66 @@ export function AccuracyView({ cutoffOptions }) {
 
   return (
     <div className="space-y-6">
-      {/* Filter Control (Formik + Zod) */}
+      {/* Filter Control */}
       <Card className="bg-slate-900/60 border-slate-800">
         <CardContent className="p-4 sm:p-5">
-          <form onSubmit={formik.handleSubmit} className="flex flex-wrap items-end gap-4">
-            <div className="flex-1 min-w-[160px] space-y-1.5">
-              <label htmlFor="startDate" className="text-xs font-medium text-slate-300 flex items-center gap-1.5">
-                <Calendar className="h-3.5 w-3.5 text-emerald-400" />
-                Start Date
-              </label>
-              <Select
-                id="startDate"
-                name="startDate"
-                value={formik.values.startDate}
-                onChange={formik.handleChange}
-                onBlur={formik.handleBlur}
-              >
-                {Array.from({ length: 31 }, (_, i) => {
-                  const day = String(i + 1).padStart(2, "0")
-                  return (
-                    <option key={`2026-01-${day}`} value={`2026-01-${day}`}>
-                      2026-01-{day}
-                    </option>
-                  )
-                })}
-              </Select>
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="min-w-[160px] space-y-1.5">
+                <label htmlFor="startDate" className="text-xs font-medium text-slate-300 flex items-center gap-1.5">
+                  <Calendar className="h-3.5 w-3.5 text-emerald-400" />
+                  Start Date
+                </label>
+                <Select
+                  id="startDate"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                >
+                  {Array.from({ length: 31 }, (_, i) => {
+                    const day = String(i + 1).padStart(2, "0")
+                    return (
+                      <option key={`2026-01-${day}`} value={`2026-01-${day}`}>
+                        2026-01-{day}
+                      </option>
+                    )
+                  })}
+                </Select>
+              </div>
+
+              <div className="min-w-[160px] space-y-1.5">
+                <label htmlFor="endDate" className="text-xs font-medium text-slate-300 flex items-center gap-1.5">
+                  <Calendar className="h-3.5 w-3.5 text-emerald-400" />
+                  End Date
+                </label>
+                <Select
+                  id="endDate"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                >
+                  {Array.from({ length: 31 }, (_, i) => {
+                    const day = String(i + 1).padStart(2, "0")
+                    return (
+                      <option key={`2026-01-${day}`} value={`2026-01-${day}`}>
+                        2026-01-{day}
+                      </option>
+                    )
+                  })}
+                </Select>
+              </div>
             </div>
 
-            <div className="flex-1 min-w-[160px] space-y-1.5">
-              <label htmlFor="endDate" className="text-xs font-medium text-slate-300 flex items-center gap-1.5">
-                <Calendar className="h-3.5 w-3.5 text-emerald-400" />
-                End Date
-              </label>
-              <Select
-                id="endDate"
-                name="endDate"
-                value={formik.values.endDate}
-                onChange={formik.handleChange}
-                onBlur={formik.handleBlur}
-              >
-                {Array.from({ length: 31 }, (_, i) => {
-                  const day = String(i + 1).padStart(2, "0")
-                  return (
-                    <option key={`2026-01-${day}`} value={`2026-01-${day}`}>
-                      2026-01-{day}
-                    </option>
-                  )
-                })}
-              </Select>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center text-xs text-slate-300 bg-slate-950/80 px-4 py-2.5 rounded-lg border border-slate-800">
+                <Clock className="h-4 w-4 text-emerald-400 mr-2 shrink-0" />
+                <span>Decision Cutoff: <strong className="text-emerald-400">11:00 UTC</strong> on D-1</span>
+              </div>
+              <div className="hidden xl:flex items-center text-xs text-slate-400 bg-slate-950/60 px-4 py-2.5 rounded-lg border border-slate-800">
+                <span>
+                  Evaluating <strong className="text-emerald-400">{metrics?.total_observations || 0}</strong> hourly delivery intervals
+                </span>
+              </div>
             </div>
-
-            <div className="flex-1 min-w-[240px] space-y-1.5">
-              <label htmlFor="cutoffTime" className="text-xs font-medium text-slate-300 flex items-center gap-1.5">
-                <Clock className="h-3.5 w-3.5 text-sky-400" />
-                Decision Gate Closure (D-1)
-              </label>
-              <Select
-                id="cutoffTime"
-                name="cutoffTime"
-                value={formik.values.cutoffTime}
-                onChange={formik.handleChange}
-                onBlur={formik.handleBlur}
-              >
-                {cutoffOptions?.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </Select>
-            </div>
-
-            <div className="hidden xl:flex items-center text-xs text-slate-400 bg-slate-950/60 px-4 py-2 rounded-lg border border-slate-800 mb-0.5">
-              <span>
-                Evaluating <strong className="text-emerald-400">{metrics?.total_observations || 0}</strong> hourly delivery intervals across January 2026
-              </span>
-            </div>
-          </form>
+          </div>
         </CardContent>
       </Card>
 
@@ -256,27 +207,27 @@ export function AccuracyView({ cutoffOptions }) {
           </div>
         </Card>
 
-        {/* P90 Shortfall */}
+        {/* P90 Error Quantile */}
         <Card className="bg-slate-900/80 border-slate-800 p-4 relative overflow-hidden">
-          <div className="text-[11px] text-slate-400 font-medium">P90 Shortfall Risk</div>
+          <div className="text-[11px] text-slate-400 font-medium">P90 Error Quantile</div>
           <div className="text-2xl font-bold font-mono text-rose-400 mt-1">
-            {metrics?.p90_shortfall?.toLocaleString() ?? "—"}{" "}
+            {metrics?.p90_error ? `${metrics.p90_error > 0 ? "+" : ""}${metrics.p90_error.toLocaleString()}` : "—"}{" "}
             <span className="text-xs font-normal text-slate-400">MW</span>
           </div>
           <div className="text-[10px] text-slate-500 mt-1">
-            Reserve buffer for 90% protection
+            90th percentile error (F - A)
           </div>
         </Card>
 
-        {/* P95 Shortfall */}
+        {/* P95 Error Quantile */}
         <Card className="bg-slate-900/80 border-slate-800 p-4 relative overflow-hidden">
-          <div className="text-[11px] text-slate-400 font-medium">P95 Shortfall Risk</div>
+          <div className="text-[11px] text-slate-400 font-medium">P95 Error Quantile</div>
           <div className="text-2xl font-bold font-mono text-orange-400 mt-1">
-            {metrics?.p95_shortfall?.toLocaleString() ?? "—"}{" "}
+            {metrics?.p95_error ? `${metrics.p95_error > 0 ? "+" : ""}${metrics.p95_error.toLocaleString()}` : "—"}{" "}
             <span className="text-xs font-normal text-slate-400">MW</span>
           </div>
           <div className="text-[10px] text-slate-500 mt-1">
-            Reserve buffer for 95% protection
+            95th percentile error (F - A)
           </div>
         </Card>
       </div>
@@ -285,7 +236,7 @@ export function AccuracyView({ cutoffOptions }) {
       <Card className="bg-slate-900/50 border-slate-800">
         <CardContent className="p-4 grid grid-cols-2 md:grid-cols-4 gap-4 text-xs font-mono">
           <div className="flex justify-between items-center p-2 rounded-lg bg-slate-950/60 border border-slate-800/80">
-            <span className="text-slate-400">P10 Error (Under-forecast):</span>
+            <span className="text-slate-400">P10 Error Quantile:</span>
             <span className="font-semibold text-sky-400">{metrics?.p10_error?.toLocaleString()} MW</span>
           </div>
           <div className="flex justify-between items-center p-2 rounded-lg bg-slate-950/60 border border-slate-800/80">
@@ -313,7 +264,7 @@ export function AccuracyView({ cutoffOptions }) {
               Forecast Error Distribution (MW Bins)
             </CardTitle>
             <CardDescription>
-              Histogram of (Forecast - Actual). Bins right of 0 represent wind shortfall (over-forecast); bins left represent surplus.
+              Histogram of (Forecast - Actual). Positive values indicate over-forecast; negative values indicate under-forecast.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -332,11 +283,11 @@ export function AccuracyView({ cutoffOptions }) {
                   <Tooltip content={<DistTooltip />} />
                   <Bar dataKey="count" radius={[4, 4, 0, 0]}>
                     {distribution?.distribution?.map((entry, index) => {
-                      const isShortfall = entry.bin_start >= 0
+                      const isOver = entry.bin_start >= 0
                       return (
                         <Cell
                           key={`cell-${index}`}
-                          fill={isShortfall ? "#f43f5e" : "#0ea5e9"}
+                          fill={isOver ? "#f43f5e" : "#0ea5e9"}
                           fillOpacity={0.8}
                         />
                       )
@@ -348,11 +299,11 @@ export function AccuracyView({ cutoffOptions }) {
             <div className="flex justify-center gap-6 text-xs text-slate-400 mt-2">
               <span className="flex items-center gap-1.5">
                 <span className="h-2.5 w-2.5 rounded bg-sky-500" />
-                Under-forecast (Wind Surplus)
+                Under-forecast (F &lt; A)
               </span>
               <span className="flex items-center gap-1.5">
                 <span className="h-2.5 w-2.5 rounded bg-rose-500" />
-                Over-forecast (Wind Shortfall)
+                Over-forecast (F &gt; A)
               </span>
             </div>
           </CardContent>
