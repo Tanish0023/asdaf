@@ -79,7 +79,7 @@ class ElexonClient:
                     "generation": gen_val
                 })
 
-        logger.info(f"Fetched {len(wind_records)} WIND records from FUELHH ({publish_from} to {publish_to})")
+        logger.debug(f"Fetched {len(wind_records)} WIND records from FUELHH ({publish_from} to {publish_to})")
         return wind_records
 
     async def fetch_windfor_stream(
@@ -112,7 +112,7 @@ class ElexonClient:
                     "generation": gen_val
                 })
 
-        logger.info(f"Fetched {len(forecast_records)} WINDFOR forecast records ({publish_from} to {publish_to})")
+        logger.debug(f"Fetched {len(forecast_records)} WINDFOR forecast records ({publish_from} to {publish_to})")
         return forecast_records
 
     async def fetch_dataset_in_chunks(
@@ -123,24 +123,27 @@ class ElexonClient:
         chunk_days: int = 5
     ) -> List[Dict[str, Any]]:
         """
-        Fetches data in chunk_days windows to avoid large responses and timeouts.
+        Fetches data in chunk_days windows concurrently to avoid large responses and minimize latency.
         """
+        intervals = []
         current_start = start_date
-        all_records = []
-
         while current_start < end_date:
             current_end = min(current_start + timedelta(days=chunk_days), end_date)
             from_str = current_start.strftime("%Y-%m-%dT%H:%M:%SZ")
             to_str = current_end.strftime("%Y-%m-%dT%H:%M:%SZ")
-
-            if dataset == "FUELHH":
-                records = await self.fetch_fuelhh_stream(from_str, to_str)
-            elif dataset == "WINDFOR":
-                records = await self.fetch_windfor_stream(from_str, to_str)
-            else:
-                raise ValueError(f"Unknown dataset: {dataset}")
-            all_records.extend(records)
-
+            intervals.append((from_str, to_str))
             current_start = current_end
+
+        if dataset == "FUELHH":
+            tasks = [self.fetch_fuelhh_stream(f, t) for f, t in intervals]
+        elif dataset == "WINDFOR":
+            tasks = [self.fetch_windfor_stream(f, t) for f, t in intervals]
+        else:
+            raise ValueError(f"Unknown dataset: {dataset}")
+
+        results = await asyncio.gather(*tasks)
+        all_records = []
+        for chunk in results:
+            all_records.extend(chunk)
 
         return all_records

@@ -16,20 +16,28 @@ import logging
 
 from app.database import init_db
 from app.services.data_store import DataStore
+from app.services.ingest_service import ensure_data_ingested
 from app.routers import dates, day_ahead, metrics
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
 logger = logging.getLogger("gridbricks.api")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup: Initialize Database
-    logger.info("Initializing Neon PostgreSQL database...")
     init_db()
     
     store = DataStore()
     status = store.get_sync_status()
-    logger.info(f"DB initialized. Current records: {status['actual_count']} actuals, {status['forecast_count']} forecasts.")
+    logger.info(f"Database connected. Records: {status['actual_count']} actuals, {status['forecast_count']} forecasts.")
+
+    if status.get("actual_count", 0) == 0 or status.get("forecast_count", 0) == 0:
+        logger.info("Database records missing. Auto-ingesting wind datasets from Elexon BMRS...")
+        await ensure_data_ingested()
+        new_status = store.get_sync_status()
+        logger.info(f"Ingestion complete: {new_status['actual_count']} actuals, {new_status['forecast_count']} forecasts.")
     
     yield
     logger.info("Shutting down GridBricks API...")

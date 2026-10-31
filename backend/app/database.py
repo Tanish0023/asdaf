@@ -38,9 +38,9 @@ def init_db():
     Initializes PostgreSQL database tables and indexes on Neon.
     """
     engine = get_engine()
-    logger.info("Initializing Neon PostgreSQL schema...")
+    logger.debug("Initializing Neon PostgreSQL schema...")
     Base.metadata.create_all(bind=engine)
-    logger.info("Neon PostgreSQL schema created successfully.")
+    logger.debug("Neon PostgreSQL schema created successfully.")
 
 @contextmanager
 def get_db():

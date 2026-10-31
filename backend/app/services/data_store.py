@@ -35,16 +35,21 @@ class DataStore:
         if not records:
             return 0
 
-        mapped_records = []
+        # De-duplicate by primary key (start_time) to avoid PostgreSQL CardinalityViolation in batch upsert
+        deduped = {}
         for r in records:
-            mapped_records.append({
-                "start_time": r.get("startTime") or r.get("start_time"),
+            st = r.get("startTime") or r.get("start_time")
+            if not st:
+                continue
+            deduped[st] = {
+                "start_time": st,
                 "publish_time": r.get("publishTime") or r.get("publish_time"),
                 "settlement_date": r.get("settlementDate") or r.get("settlement_date"),
                 "settlement_period": r.get("settlementPeriod") or r.get("settlement_period"),
                 "generation": float(r.get("generation", 0.0)),
-            })
+            }
 
+        mapped_records = list(deduped.values())
         total_upserted = 0
         with get_db() as session:
             for i in range(0, len(mapped_records), batch_size):
@@ -70,14 +75,20 @@ class DataStore:
         if not records:
             return 0
 
-        mapped_records = []
+        # De-duplicate by primary key (publish_time, start_time) to avoid PostgreSQL CardinalityViolation in batch upsert
+        deduped = {}
         for r in records:
-            mapped_records.append({
-                "publish_time": r.get("publishTime") or r.get("publish_time"),
-                "start_time": r.get("startTime") or r.get("start_time"),
+            pub = r.get("publishTime") or r.get("publish_time")
+            st = r.get("startTime") or r.get("start_time")
+            if not pub or not st:
+                continue
+            deduped[(pub, st)] = {
+                "publish_time": pub,
+                "start_time": st,
                 "generation": float(r.get("generation", 0.0)),
-            })
+            }
 
+        mapped_records = list(deduped.values())
         total_upserted = 0
         with get_db() as session:
             for i in range(0, len(mapped_records), batch_size):
@@ -99,20 +110,23 @@ class DataStore:
         if _CACHE["sync_status"] and (now - _CACHE["sync_status_time"] < CACHE_TTL):
             return _CACHE["sync_status"]
 
-        with get_db() as session:
-            sql = text("""
-                SELECT
-                    (SELECT count(*) FROM actual_wind) as actual_count,
-                    (SELECT count(*) FROM forecast_wind) as forecast_count
-            """)
-            row = session.execute(sql).fetchone()
-            res = {
-                "actual_count": int(row[0]) if row and row[0] is not None else 0,
-                "forecast_count": int(row[1]) if row and row[1] is not None else 0
-            }
-            _CACHE["sync_status"] = res
-            _CACHE["sync_status_time"] = now
-            return res
+        try:
+            with get_db() as session:
+                sql = text("""
+                    SELECT
+                        (SELECT count(*) FROM actual_wind) as actual_count,
+                        (SELECT count(*) FROM forecast_wind) as forecast_count
+                """)
+                row = session.execute(sql).fetchone()
+                res = {
+                    "actual_count": int(row[0]) if row and row[0] is not None else 0,
+                    "forecast_count": int(row[1]) if row and row[1] is not None else 0
+                }
+                _CACHE["sync_status"] = res
+                _CACHE["sync_status_time"] = now
+                return res
+        except Exception:
+            return {"actual_count": 0, "forecast_count": 0}
 
     def get_available_dates(self) -> Dict[str, Any]:
         now = time.time()

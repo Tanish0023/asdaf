@@ -13,8 +13,7 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 from app.database import init_db
-from app.services.elexon_client import ElexonClient
-from app.services.data_store import DataStore
+from app.services.ingest_service import ensure_data_ingested
 
 logging.basicConfig(
     level=logging.INFO,
@@ -23,33 +22,11 @@ logging.basicConfig(
 logger = logging.getLogger("ingest")
 
 async def main():
-    logger.info("Initializing Neon PostgreSQL database...")
+    logger.info("Initializing Neon PostgreSQL database schema...")
     init_db()
 
-    client = ElexonClient()
-    store = DataStore()
-
-    # Time range: Dec 31, 2025 to Feb 2, 2026
-    start_dt = datetime(2025, 12, 31, 0, 0, 0)
-    end_dt = datetime(2026, 2, 2, 0, 0, 0)
-
-    logger.info(f"Ingesting FUELHH actuals from {start_dt} to {end_dt}...")
-    try:
-        fuel_records = await client.fetch_dataset_in_chunks("FUELHH", start_dt, end_dt, chunk_days=7)
-        count_act = store.upsert_actuals(fuel_records)
-        logger.info(f"Successfully ingested {count_act} actual wind records.")
-    except Exception as e:
-        logger.error(f"FUELHH ingestion failed: {e}")
-
-    logger.info(f"Ingesting WINDFOR forecasts from {start_dt} to {end_dt}...")
-    try:
-        wind_records = await client.fetch_dataset_in_chunks("WINDFOR", start_dt, end_dt, chunk_days=5)
-        count_for = store.upsert_forecasts(wind_records)
-        logger.info(f"Successfully ingested {count_for} forecast records.")
-    except Exception as e:
-        logger.error(f"WINDFOR ingestion failed: {e}")
-
-    status = store.get_sync_status()
+    logger.info("Running data ingestion pipeline...")
+    status = await ensure_data_ingested(force=True)
     logger.info(f"Ingestion complete! Final database totals: {status['actual_count']} actuals, {status['forecast_count']} forecasts.")
 
 if __name__ == "__main__":
