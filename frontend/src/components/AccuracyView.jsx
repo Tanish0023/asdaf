@@ -12,10 +12,10 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "./ui/
 import { Select } from "./ui/select"
 import { Alert, AlertTitle, AlertDescription } from "./ui/alert"
 
-export function AccuracyView() {
+export function AccuracyView({ availableDates }) {
   const [loading, setLoading] = useState(false)
-  const [startDate, setStartDate] = useState("2026-01-01")
-  const [endDate, setEndDate] = useState("2026-01-31")
+  const [startDate, setStartDate] = useState("2026-01-02")
+  const [endDate, setEndDate] = useState("2026-02-01")
   const [metrics, setMetrics] = useState(null)
   const [hourlyProfile, setHourlyProfile] = useState([])
   const [dailyTimeline, setDailyTimeline] = useState([])
@@ -58,6 +58,13 @@ export function AccuracyView() {
     fetchAllMetrics(startDate, endDate)
   }, [startDate, endDate])
 
+  useEffect(() => {
+    if (availableDates?.delivery_dates?.length) {
+      if (!startDate) setStartDate(availableDates.delivery_dates[0])
+      if (!endDate) setEndDate(availableDates.delivery_dates[availableDates.delivery_dates.length - 1])
+    }
+  }, [availableDates])
+
   // Custom Histogram Tooltip
   const DistTooltip = ({ active, payload }) => {
     if (active && payload && payload.length) {
@@ -72,6 +79,14 @@ export function AccuracyView() {
     }
     return null
   }
+
+  const dateOptions = availableDates?.delivery_dates || [
+    ...Array.from({ length: 30 }, (_, i) => {
+      const day = String(i + 2).padStart(2, "0")
+      return `2026-01-${day}`
+    }),
+    "2026-02-01"
+  ]
 
   return (
     <div className="space-y-6">
@@ -90,14 +105,11 @@ export function AccuracyView() {
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
                 >
-                  {Array.from({ length: 31 }, (_, i) => {
-                    const day = String(i + 1).padStart(2, "0")
-                    return (
-                      <option key={`2026-01-${day}`} value={`2026-01-${day}`}>
-                        2026-01-{day}
-                      </option>
-                    )
-                  })}
+                  {dateOptions.map((d) => (
+                    <option key={d} value={d} className="bg-slate-900 text-white">
+                      {d}
+                    </option>
+                  ))}
                 </Select>
               </div>
 
@@ -111,14 +123,11 @@ export function AccuracyView() {
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
                 >
-                  {Array.from({ length: 31 }, (_, i) => {
-                    const day = String(i + 1).padStart(2, "0")
-                    return (
-                      <option key={`2026-01-${day}`} value={`2026-01-${day}`}>
-                        2026-01-{day}
-                      </option>
-                    )
-                  })}
+                  {dateOptions.map((d) => (
+                    <option key={d} value={d} className="bg-slate-900 text-white">
+                      {d}
+                    </option>
+                  ))}
                 </Select>
               </div>
             </div>

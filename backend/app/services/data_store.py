@@ -9,13 +9,14 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.database import get_db
 from app.models import ActualWind, ForecastWind
+from app.config import ASSESSMENT_START_DATE, ASSESSMENT_END_DATE
 
 logger = logging.getLogger(__name__)
 
 # In-memory cache for metadata and dates
 _CACHE = {
-    "sync_status": None,
-    "sync_status_time": 0,
+    "data_status": None,
+    "data_status_time": 0,
     "available_dates": None,
     "available_dates_time": 0,
 }
@@ -23,7 +24,7 @@ CACHE_TTL = 300  # 5 minutes cache for static metadata
 
 class DataStore:
     def invalidate_cache(self):
-        _CACHE["sync_status"] = None
+        _CACHE["data_status"] = None
         _CACHE["available_dates"] = None
         try:
             from app.services.analytics import clear_analytics_cache
@@ -105,28 +106,52 @@ class DataStore:
         self.invalidate_cache()
         return total_upserted
 
-    def get_sync_status(self) -> Dict[str, Any]:
+    def get_data_status(self) -> Dict[str, Any]:
         now = time.time()
-        if _CACHE["sync_status"] and (now - _CACHE["sync_status_time"] < CACHE_TTL):
-            return _CACHE["sync_status"]
+        if _CACHE["data_status"] and (now - _CACHE["data_status_time"] < CACHE_TTL):
+            return _CACHE["data_status"]
 
         try:
             with get_db() as session:
                 sql = text("""
                     SELECT
                         (SELECT count(*) FROM actual_wind) as actual_count,
-                        (SELECT count(*) FROM forecast_wind) as forecast_count
+                        (SELECT count(*) FROM forecast_wind) as forecast_count,
+                        (SELECT min(settlement_date) FROM actual_wind) as min_act_date,
+                        (SELECT max(settlement_date) FROM actual_wind) as max_act_date
                 """)
                 row = session.execute(sql).fetchone()
+                act_cnt = int(row[0]) if row and row[0] is not None else 0
+                fc_cnt = int(row[1]) if row and row[1] is not None else 0
+                min_act = str(row[2]) if row and row[2] is not None else None
+                max_act = str(row[3]) if row and row[3] is not None else None
+
+                # Dataset completeness: covers 31 Dec 2025 to 2 Feb 2026 with sufficient rows
+                is_complete = bool(
+                    act_cnt >= 1500 and
+                    fc_cnt >= 10000 and
+                    min_act and min_act <= "2025-12-31" and
+                    max_act and max_act >= "2026-02-01"
+                )
+
                 res = {
-                    "actual_count": int(row[0]) if row and row[0] is not None else 0,
-                    "forecast_count": int(row[1]) if row and row[1] is not None else 0
+                    "actual_count": act_cnt,
+                    "forecast_count": fc_cnt,
+                    "min_actual_date": min_act,
+                    "max_actual_date": max_act,
+                    "is_complete": is_complete
                 }
-                _CACHE["sync_status"] = res
-                _CACHE["sync_status_time"] = now
+                _CACHE["data_status"] = res
+                _CACHE["data_status_time"] = now
                 return res
         except Exception:
-            return {"actual_count": 0, "forecast_count": 0}
+            return {
+                "actual_count": 0,
+                "forecast_count": 0,
+                "min_actual_date": None,
+                "max_actual_date": None,
+                "is_complete": False
+            }
 
     def get_available_dates(self) -> Dict[str, Any]:
         now = time.time()
@@ -137,14 +162,14 @@ class DataStore:
             rows = session.query(
                 ActualWind.settlement_date
             ).filter(
-                ActualWind.settlement_date >= "2026-01-01",
-                ActualWind.settlement_date <= "2026-01-31"
+                ActualWind.settlement_date >= ASSESSMENT_START_DATE,
+                ActualWind.settlement_date <= ASSESSMENT_END_DATE
             ).distinct().order_by(ActualWind.settlement_date.asc()).all()
 
             dates = [r[0] for r in rows if r[0]]
 
         if not dates:
-            start = datetime(2026, 1, 1)
+            start = datetime.strptime(ASSESSMENT_START_DATE, "%Y-%m-%d")
             dates = [(start + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(31)]
 
         delivery_dates = sorted(dates)

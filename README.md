@@ -1,39 +1,44 @@
 # GridBricks WindPulse
 
-GridBricks WindPulse is a full-stack web application designed for UK day-ahead wind power market analysis across January 2026. The application performs two dedicated functions: (1) displaying the latest national wind generation forecast that was available when a day-ahead purchase decision had to be made, evaluated against outturn actual generation, and (2) evaluating forecast accuracy quantitatively using standard statistical error metrics and distribution profiles. Data is sourced strictly from Elexon BMRS national-level wind actuals (`FUELHH`) and forecasts (`WINDFOR`).
+GridBricks WindPulse is a full-stack web application designed for UK day-ahead wind power market analysis across January 2026 delivery decisions. Sourced exclusively from Elexon BMRS national-level wind actuals (`FUELHH`) and forecasts (`WINDFOR`), the platform provides two dedicated functions:
+1. **Day-Ahead View:** Displays the latest national wind generation forecast published before the fixed decision cutoff on day $D-1$ evaluated against hourly aggregated actual generation for delivery day $D$.
+2. **Accuracy View:** Evaluates quantitative forecast error metrics (MAE, RMSE, MBE, WAPE, and error distribution profiles) across the evaluation window.
+
+Delivery-Day Range: Trading decisions made in January 2026 (Jan 1 to Jan 31) correspond to delivery days **2 Jan 2026 to 1 Feb 2026** (31 delivery days total), as confirmed by `GET /api/v1/dates`.
 
 ## Live App
 
-The application is deployed and accessible at:
-- Primary: [https://gridbricks.tanishportfolio.in/](https://gridbricks.tanishportfolio.in/)
-- Mirror: [https://asdaf-delta.vercel.app](https://asdaf-delta.vercel.app)
+The application is deployed and available at:
+- **Primary:** [https://gridbricks.tanishportfolio.in/](https://gridbricks.tanishportfolio.in/)
+- **Mirror:** [https://asdaf-delta.vercel.app](https://asdaf-delta.vercel.app)
 
-The deployed instance connects to a pre-loaded Neon PostgreSQL database containing the complete January 2026 national wind dataset.
+Both live deployments connect to a managed Neon PostgreSQL database pre-loaded with the national wind dataset.
 
 ## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                       Frontend: React 18 + Vite                             │
-│             Tailwind CSS · Recharts Visualizations · Lucide Icons           │
+│           Tailwind CSS · Recharts Visualizations · State-based Tabs         │
 └──────────────────────────────────────┬──────────────────────────────────────┘
                                        │ HTTP / REST
 ┌──────────────────────────────────────▼──────────────────────────────────────┐
 │                       Backend: Python 3.12 + FastAPI                        │
 │          SQLAlchemy 2.0 · Psycopg 3 · Pydantic v2 · Pandas · NumPy          │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│  Endpoints:                                                                 │
-│  - GET /api/v1/dates                      - GET /api/v1/metrics/daily       │
-│  - GET /api/v1/day-ahead                  - GET /api/v1/metrics/dist        │
-│  - GET /api/v1/metrics/summary            - GET /health                     │
-│  - GET /api/v1/metrics/hourly-profile                                       │
-└──────────────────┬──────────────────────────────────────┬───────────────────┘
-                   │ Pooled Connection (SSL)              │ Ingestion Script Only
-┌──────────────────▼──────────────────┐   ┌───────────────▼───────────────────┐
-│       Neon Serverless PostgreSQL    │   │         Elexon BMRS API           │
-│  - actual_wind: FUELHH actuals      │   │  - FUELHH (30-min actual wind)    │
-│  - forecast_wind: WINDFOR forecasts │   │  - WINDFOR (hourly wind forecasts)│
-└─────────────────────────────────────┘   │  Loaded once via ingest_data.py   │
+│  Active API Endpoints:                                                      │
+│  - GET /health (alias: /api/health)       - GET /api/v1/metrics/hourly-prof.│
+│  - GET / (alias: /api)                    - GET /api/v1/metrics/daily-time.│
+│  - GET /api/v1/dates                      - GET /api/v1/metrics/distribution│
+│  - GET /api/v1/day-ahead                  (aliases: /metrics/daily, /dist)  │
+│  - GET /api/v1/metrics/summary                                              │
+└──────────────────┬──────────────────────────────────────▲───────────────────┘
+                   │ Pooled SSL Connection                │ Ingestion (Startup
+┌──────────────────▼──────────────────┐                   │ AUTO_INGEST / Script)
+│       Neon Serverless PostgreSQL    │                   │
+│  - actual_wind: FUELHH actuals      │◄──────────────────┴───────────────────┐
+│  - forecast_wind: WINDFOR forecasts │   Elexon BMRS API (FUELHH & WINDFOR)  │
+└─────────────────────────────────────┘   Auto-loaded or ingest_data.py       │
                                           └───────────────────────────────────┘
 ```
 
@@ -41,132 +46,154 @@ The deployed instance connects to a pre-loaded Neon PostgreSQL database containi
 
 | Layer | Technology | Purpose |
 | :--- | :--- | :--- |
-| **Frontend** | React 18, Vite | Single-page UI and client-side routing |
-| **Styling & UI** | Tailwind CSS | Utility-first layout and responsive styling |
-| **Charts** | Recharts | Day-ahead generation areas, error distribution histogram, diurnal profile |
-| **Backend API** | Python 3.12, FastAPI | REST API endpoints and request validation |
+| **Frontend** | React 18, Vite | Single-page UI with state-based tab navigation (Day-Ahead and Accuracy) |
+| **Styling & UI** | Tailwind CSS | Layout, responsive design, and component styling |
+| **Visualizations** | Recharts | Day-ahead schedule area charts, error distribution histogram, diurnal profile |
+| **Backend API** | Python 3.12, FastAPI | REST API endpoints, request validation, and OpenAPI documentation |
 | **Database ORM** | SQLAlchemy 2.0, Psycopg 3 | PostgreSQL connection pooling and atomic query execution |
-| **Analytics** | Pandas, NumPy | Hourly resolution averaging, forecast alignment, and statistical error metrics |
-| **Database** | Neon Serverless PostgreSQL | Managed cloud PostgreSQL storage with pooled SSL connections |
-| **Containers** | Docker, Docker Compose | Multi-container orchestration (backend and frontend reverse proxy) |
+| **Analytics Engine** | Pandas, NumPy | Hourly resolution averaging, forecast alignment, and statistical error metrics |
+| **Database** | Neon Serverless PostgreSQL | Cloud PostgreSQL storage with pooled SSL connections |
+| **Containers** | Docker, Docker Compose | Container orchestration (FastAPI backend and Nginx frontend) |
+
+### Active API Endpoints
+
+- `GET /health` (alias: `/api/health`): Service health status and database row counts
+- `GET /` (alias: `/api`): Root metadata endpoint
+- `GET /api/v1/dates`: Returns available delivery dates (`2026-01-02` to `2026-02-01`) and decision dates (`2026-01-01` to `2026-01-31`)
+- `GET /api/v1/day-ahead`: Hourly forecast vs. aggregated actual generation for a delivery date
+- `GET /api/v1/metrics/summary`: Aggregate error metrics (MAE, RMSE, MBE, WAPE, quantiles)
+- `GET /api/v1/metrics/hourly-profile`: 24-hour diurnal profile of average actuals, forecasts, and error
+- `GET /api/v1/metrics/daily-timeline` (alias: `/api/v1/metrics/daily`): Day-by-day error metrics timeline
+- `GET /api/v1/metrics/distribution` (alias: `/api/v1/metrics/dist`): Binned error frequency distribution
 
 ## Methodology
 
-- **Resolution Matching:** Outturn wind actuals (`FUELHH`) are reported at half-hourly resolution ($48$ settlement periods per day). Because forecasts (`WINDFOR`) are issued at hourly resolution, consecutive half-hourly actuals within each hour are averaged arithmetically:
-  $$\text{Actual}_{\text{hour } h} = \frac{\text{Actual}_{h:00} + \text{Actual}_{h:30}}{2}$$
-- **Decision Cutoff Assumption:** When making a procurement decision for delivery day $D$, trading decisions are assumed to occur on day $D-1$ before a fixed cutoff time configured in `backend/app/config.py` (`FIXED_DECISION_CUTOFF = "11:00"`, evaluated in UTC). For each delivery hour on day $D$, the system selects the latest forecast record whose publication timestamp satisfies:
-  $$\text{publishTime} \le (D - 1)\text{T}11:00:00\text{Z}$$
+- **Resolution Matching:** Outturn actuals (`FUELHH`) are reported at half-hourly intervals ($48$ settlement periods per day). Because forecasts (`WINDFOR`) are issued at hourly resolution, consecutive half-hourly actuals within each hour are averaged arithmetically:
+  $$\\text{Actual}_{\\text{hour } h} = \\frac{\\text{Actual}_{h:00} + \\text{Actual}_{h:30}}{2}$$
+- **Decision Cutoff Assumption:** When making a procurement decision for delivery day $D$, trading decisions occur on day $D-1$ before a fixed cutoff configured in `backend/app/config.py` (`FIXED_DECISION_CUTOFF = "11:00"`, evaluated in UTC). For each delivery hour on day $D$, the system selects the latest forecast record satisfying:
+  $$\\text{publishTime} \\le (D - 1)\\text{T}11:00:00\\text{Z}$$
   Any forecast published after 11:00 UTC on $D-1$ is strictly excluded to prevent look-ahead bias.
+- **Delivery-Day Range:** Decisions made in January 2026 (Jan 1 to Jan 31) dictate delivery days from **2 Jan 2026 to 1 Feb 2026** ($31$ delivery days). Verified via `GET /api/v1/dates`, which returns delivery dates `2026-01-02` through `2026-02-01` and decision dates `2026-01-01` through `2026-01-31`. Underlying data is loaded across 31 Dec 2025 to 2 Feb 2026 to supply the necessary boundary decision gates.
 - **Error Definition:** Forecast error is defined as forecast minus actual generation:
   $$e_i = F_i - A_i$$
-  Positive values ($e_i > 0$) denote an over-forecast; negative values ($e_i < 0$) denote an under-forecast.
+  Positive values denote an over-forecast ($F > A$); negative values denote an under-forecast ($F < A$).
 - **Accuracy Metrics:**
-  - **Mean Absolute Error (MAE):** $\text{MAE} = \frac{1}{N}\sum_{i=1}^N |F_i - A_i|$
-  - **Root Mean Squared Error (RMSE):** $\text{RMSE} = \sqrt{\frac{1}{N}\sum_{i=1}^N (F_i - A_i)^2}$
-  - **Mean Bias Error (MBE):** $\text{MBE} = \frac{1}{N}\sum_{i=1}^N (F_i - A_i)$
-  - **Weighted Absolute Percentage Error (WAPE):** $\text{WAPE} = \frac{\sum_{i=1}^N |F_i - A_i|}{\sum_{i=1}^N A_i} \times 100\%$
+  - **Mean Absolute Error (MAE):** $\\text{MAE} = \\frac{1}{N}\\sum_{i=1}^N |F_i - A_i|$
+  - **Root Mean Squared Error (RMSE):** $\\text{RMSE} = \\sqrt{\\frac{1}{N}\\sum_{i=1}^N (F_i - A_i)^2}$
+  - **Mean Bias Error (MBE):** $\\text{MBE} = \\frac{1}{N}\\sum_{i=1}^N (F_i - A_i)$
+  - **Weighted Absolute Percentage Error (WAPE):** $\\text{WAPE} = \\frac{\\sum_{i=1}^N |F_i - A_i|}{\\sum_{i=1}^N A_i} \\times 100\\%$
 
 ## Files and Directories
 
 ```
-Gridbricks/
+.
 ├── .dockerignore                       # Docker build context exclusions
-├── .env.example                        # Template for database connection string and environment variables
-├── .gitignore                          # Git file exclusion rules (excludes credentials and private files)
-├── docker-compose.yml                  # Multi-container orchestration for backend and frontend services
+├── .env.example                        # Template for environment configuration and Neon database URL
+├── .gitignore                          # Git file exclusions (excludes .env, DEMO_SCRIPT.md, caches)
+├── README.md                           # Project technical documentation and engineering reference
+├── docker-compose.yml                  # Container orchestration for backend and frontend services
 ├── package.json                        # Root npm script shortcuts for container management and test runs
-├── pyproject.toml                      # Root Python packaging and tool configuration
-├── pytest.ini                          # Pytest configuration and pythonpath definition
-├── README.md                           # Project engineering documentation and setup guide
-├── requirements.txt                    # Root Python dependencies list
-├── vercel.json                         # Vercel deployment specification and API route rewrites
+├── pytest.ini                          # Pytest configuration and pythonpath definitions
+├── vercel.json                         # Vercel deployment specification and route rewrites
 ├── backend/
+│   ├── Dockerfile                      # Python 3.12 container build definition for backend service
+│   ├── pyproject.toml                  # Backend package metadata and Vercel framework definition
+│   ├── requirements.txt                # Single source of truth for Python dependencies
 │   ├── app/
-│   │   ├── __init__.py                 # Backend application package marker
-│   │   ├── config.py                   # Environment variable loader and fixed 11:00 UTC decision cutoff constant
-│   │   ├── database.py                 # SQLAlchemy engine configuration and pooled session provider
-│   │   ├── main.py                     # FastAPI application factory, lifespan handler, CORS, and root routes
+│   │   ├── __init__.py                 # Application package marker
+│   │   ├── config.py                   # Environment configuration, fixed 11:00 UTC cutoff, and dates
+│   │   ├── database.py                 # SQLAlchemy engine and pooled session provider
+│   │   ├── main.py                     # FastAPI application factory, lifespan handler, and root routes
 │   │   ├── models.py                   # SQLAlchemy ORM models for actual_wind and forecast_wind
-│   │   ├── schemas.py                  # Pydantic response models for schedules, metrics, and profiles
+│   │   ├── schemas.py                  # Pydantic models for responses and summaries
 │   │   ├── routers/
 │   │   │   ├── __init__.py             # Routers package marker
-│   │   │   ├── dates.py                # GET /api/v1/dates returning available delivery and decision dates
-│   │   │   ├── day_ahead.py            # GET /api/v1/day-ahead returning hourly forecast vs actual generation
-│   │   │   └── metrics.py              # GET /api/v1/metrics/* endpoints (summary, hourly profile, daily, dist)
+│   │   │   ├── dates.py                # GET /api/v1/dates returning evaluation delivery and decision dates
+│   │   │   ├── day_ahead.py            # GET /api/v1/day-ahead returning hourly forecast vs actual schedule
+│   │   │   └── metrics.py              # GET /api/v1/metrics/* endpoints (summary, profile, timeline, dist)
 │   │   └── services/
 │   │       ├── __init__.py             # Services package marker
-│   │       ├── analytics.py            # Resolution alignment, error metric calculations, and distribution binner
-│   │       ├── data_store.py           # PostgreSQL data access layer with DISTINCT ON queries and upsert operations
-│   │       └── elexon_client.py        # Async HTTP client used by ingestion script to stream BMRS datasets
+│   │       ├── analytics.py            # Resolution alignment, error metric calculations, and distribution
+│   │       ├── data_store.py           # PostgreSQL data access layer with indexed queries and upserts
+│   │       ├── elexon_client.py        # Async HTTP client streaming Elexon BMRS datasets
+│   │       └── ingest_service.py       # Ingestion coordination with dataset completeness check
 │   ├── scripts/
-│   │   └── ingest_data.py              # One-time data ingestion script loading Elexon data for Dec 31 2025 - Feb 2 2026
-│   ├── tests/
-│   │   ├── __init__.py                 # Test package marker
-│   │   ├── test_aggregation.py         # Unit tests verifying half-hourly to hourly actuals averaging logic
-│   │   ├── test_alignment.py           # Unit tests verifying strict exclusion of forecasts after D-1 11:00 UTC cutoff
-│   │   ├── test_api.py                 # Integration tests verifying status codes and schema shapes across remaining endpoints
-│   │   └── test_metrics.py             # Unit tests verifying MAE, RMSE, MBE, WAPE, and quantile calculations
-│   ├── Dockerfile                      # Python 3.12 container build definition for backend service
-│   ├── pyproject.toml                  # Backend package configuration
-│   └── requirements.txt                # Backend Python package requirements
+│   │   └── ingest_data.py              # Canonical ingestion script loading 31 Dec 2025 to 2 Feb 2026 data
+│   └── tests/
+│       ├── test_aggregation.py         # Unit tests verifying half-hourly to hourly actuals averaging logic
+│       ├── test_alignment.py           # Unit tests verifying forecast exclusion after D-1 11:00 UTC cutoff
+│       ├── test_api.py                 # Integration tests verifying status codes and schema shapes
+│       ├── test_auto_ingest.py         # Unit tests verifying ingestion completeness check, skip, and error handling
+│       └── test_metrics.py             # Unit tests verifying MAE, RMSE, MBE, WAPE, and edge cases
 └── frontend/
-    ├── src/
-    │   ├── components/
-    │   │   ├── ui/
-    │   │   │   ├── alert.jsx           # Alert notification box component
-    │   │   │   ├── badge.jsx           # Badge label component
-    │   │   │   ├── card.jsx            # Card container component
-    │   │   │   ├── select.jsx          # Native select wrapper component
-    │   │   │   └── tabs.jsx            # Tabbed interface navigation primitives
-    │   │   ├── AccuracyView.jsx        # Quantitative accuracy view (KPI cards, histogram, diurnal, daily timeline)
-    │   │   ├── DayAheadView.jsx        # Day-ahead procurement view (hourly schedule chart, KPI summary, audit table)
-    │   │   └── Header.jsx              # Application header bar with brand title and subtitle
-    │   ├── lib/
-    │   │   └── utils.js                # Tailwind class name merge utility
-    │   ├── App.jsx                     # Root application container with two core tabs (Day-Ahead and Accuracy)
-    │   ├── index.css                   # Global Tailwind CSS directives and theme variables
-    │   └── main.jsx                    # React 18 application entry point
-    ├── Dockerfile                      # Multi-stage Node build and Nginx production image definition
-    ├── index.html                      # HTML document template
-    ├── nginx.conf                      # Nginx reverse proxy configuration routing /api/ requests to backend
-    ├── package.json                    # Frontend dependencies and Vite build scripts
+    ├── Dockerfile                      # Multi-stage Node build and Nginx production server image
+    ├── index.html                      # HTML document entrypoint
+    ├── nginx.conf                      # Nginx reverse proxy configuration routing /api/ to backend
     ├── package-lock.json               # Locked frontend dependency versions
+    ├── package.json                    # Frontend dependencies and Vite build scripts
     ├── postcss.config.js               # PostCSS configuration for Tailwind CSS processing
-    ├── tailwind.config.js              # Tailwind CSS theme extension and content path configuration
-    └── vite.config.js                  # Vite bundler configuration and local development proxy
+    ├── tailwind.config.js              # Tailwind CSS theme extensions and content paths
+    ├── vite.config.js                  # Vite bundler configuration and local development proxy
+    └── src/
+        ├── App.jsx                     # Root application container with Day-Ahead and Accuracy views
+        ├── index.css                   # Global Tailwind CSS styles and theme variables
+        ├── main.jsx                    # React 18 application entry point
+        ├── components/
+        │   ├── AccuracyView.jsx        # Quantitative accuracy view (KPI cards, histogram, diurnal profile)
+        │   ├── DayAheadView.jsx        # Day-ahead procurement view (hourly schedule chart, audit table)
+        │   ├── Header.jsx              # Navigation header bar with branding and evaluation scope
+        │   └── ui/
+        │       ├── alert.jsx           # Notification alert box component
+        │       ├── badge.jsx           # Status badge component
+        │       ├── card.jsx            # Card container component
+        │       ├── select.jsx          # Native select input component
+        │       └── tabs.jsx            # Tabbed navigation primitives
+        └── lib/
+            └── utils.js                # Tailwind CSS class name merger utility
 ```
+
+> **Note on Consolidated Config & Entrypoints:** Duplicate root configuration files (`requirements.txt`, `pyproject.toml`) and unused bridge files (`backend/main.py`, `backend/__init__.py`) were deleted. `backend/requirements.txt` is the single source of truth for dependencies used by both Docker (`backend/Dockerfile`) and Vercel (`services.backend.root = "backend"`).
 
 ## How to Start the Application
 
-The deployed application already reads from a pre-loaded Neon PostgreSQL database. To run locally from a fresh clone:
+The deployed application connects to a pre-loaded Neon PostgreSQL database. To run locally from a fresh clone:
 
 ### 1. Prerequisites
-- [Docker](https://docs.docker.com/get-docker/) & Docker Compose
+- [Docker](https://docs.docker.com/get-docker/) and Docker Compose
 - [Node.js](https://nodejs.org/) (optional, required if using root `npm run` shortcuts)
+- [Python 3.12+](https://www.python.org/) (optional, required if running backend locally without Docker)
 
 ### 2. Configure Environment
-Copy `.env.example` to `.env` and set `DATABASE_URL` to your Neon PostgreSQL connection string:
+Copy `.env.example` to `.env` and configure `DATABASE_URL` with your Neon PostgreSQL connection string:
 ```bash
 cp .env.example .env
 ```
 Ensure the connection string uses Neon's pooled endpoint with SSL required:
 ```env
 DATABASE_URL=postgresql://user:password@ep-xxx-pooler.region.aws.neon.tech/neondb?sslmode=require
+AUTO_INGEST=true
 ```
 
-### 3. Load Data Once (Ingestion Script)
-Run `backend/scripts/ingest_data.py` once to populate the Neon database with national wind actuals (`FUELHH`) and forecasts (`WINDFOR`) for the evaluation window (December 31, 2025 through February 2, 2026):
+*DATABASE_URL Format:* `config.py` and `database.py` expect a standard Neon PostgreSQL URL (`postgresql://...`) with `?sslmode=require`. In `config.py`, `get_database_url()` automatically normalizes `postgres://` or `postgresql://` to `postgresql+psycopg://` to pair with SQLAlchemy 2.0 and the Psycopg 3 driver.
 
+### 3. Data Ingestion & Seeding
+Data can be loaded either automatically on startup or manually via the standalone script:
+
+- **Automatic Ingestion (Default):** `AUTO_INGEST` defaults to `true` across all environments (and is forwarded into Docker via `docker-compose.yml`). On application startup, the backend runs a fast completeness check (`DataStore.get_data_status()`).
+  - If the database is missing records or incomplete, it automatically streams 31 Dec 2025 to 2 Feb 2026 wind actuals and forecasts from Elexon BMRS.
+  - If the database already contains complete data ($\ge 1500$ actuals, $\ge 10000$ forecasts), ingestion is bypassed immediately ($< 5\text{ms}$) with zero redundant API calls.
+  - If Elexon BMRS is unreachable, a warning is logged and the server starts serving existing records without crashing.
+- **Manual Ingestion Script:** You can also run the ingestion script directly at any time:
 ```bash
 # Option A: Run inside backend container via Docker Compose
 docker compose run --rm backend python backend/scripts/ingest_data.py
 
-# Option B: Run locally (with Python 3.12+ and dependencies installed)
+# Option B: Run locally
 python backend/scripts/ingest_data.py
 ```
 
 ### 4. Start the Application
-Start both backend and frontend containers:
+Start backend and frontend services using Docker Compose:
 ```bash
 npm run server:start
 # or: docker compose up -d
@@ -179,7 +206,6 @@ npm run server:start
 To view live container logs:
 ```bash
 npm run server:logs
-# or: docker compose logs -f
 ```
 
 To stop containers:
@@ -189,41 +215,43 @@ npm run server:stop
 ```
 
 ### 5. Run the Automated Test Suite
-Run the test suite inside the backend container or locally:
+Run the test suite locally or inside the container:
 ```bash
-npm test
-# or: docker compose exec backend pytest -v
-# or locally: pytest -v
+pytest -v
+# or via root npm script: npm test
 ```
 
 Real test suite execution output:
 ```
-backend/tests/test_aggregation.py::test_hourly_aggregation_two_half_hours PASSED
-backend/tests/test_aggregation.py::test_hourly_aggregation_single_half_hour PASSED
-backend/tests/test_aggregation.py::test_hourly_aggregation_missing_data PASSED
-backend/tests/test_alignment.py::test_forecast_alignment_selects_latest_before_cutoff PASSED
-backend/tests/test_alignment.py::test_forecast_alignment_boundary_at_cutoff PASSED
-backend/tests/test_alignment.py::test_forecast_alignment_strictly_excludes_future_forecasts PASSED
-backend/tests/test_api.py::test_health_endpoint PASSED
-backend/tests/test_dates_endpoint PASSED
-backend/tests/test_day_ahead_endpoint PASSED
-backend/tests/test_metrics_summary_endpoint PASSED
-backend/tests/test_hourly_profile_endpoint PASSED
-backend/tests/test_distribution_endpoint PASSED
-backend/tests/test_dist_alias_endpoint PASSED
-backend/tests/test_daily_timeline_endpoint PASSED
-backend/tests/test_metrics.py::test_accuracy_metrics_calculation PASSED
-backend/tests/test_metrics.py::test_zero_generation_and_empty_dataset PASSED
+backend/tests/test_aggregation.py::test_hourly_aggregation_two_half_hours PASSED [  5%]
+backend/tests/test_aggregation.py::test_hourly_aggregation_single_half_hour PASSED [ 10%]
+backend/tests/test_aggregation.py::test_hourly_aggregation_missing_data PASSED [ 15%]
+backend/tests/test_alignment.py::test_forecast_alignment_selects_latest_before_cutoff PASSED [ 21%]
+backend/tests/test_alignment.py::test_forecast_alignment_boundary_at_cutoff PASSED [ 26%]
+backend/tests/test_alignment.py::test_forecast_alignment_strictly_excludes_future_forecasts PASSED [ 31%]
+backend/tests/test_api.py::test_health_endpoint PASSED                   [ 36%]
+backend/tests/test_api.py::test_dates_endpoint PASSED                    [ 42%]
+backend/tests/test_day_ahead_endpoint PASSED                [ 47%]
+backend/tests/test_metrics_summary_endpoint PASSED          [ 52%]
+backend/tests/test_hourly_profile_endpoint PASSED           [ 57%]
+backend/tests/test_distribution_endpoint PASSED             [ 63%]
+backend/tests/test_dist_alias_endpoint PASSED               [ 68%]
+backend/tests/test_daily_timeline_endpoint PASSED           [ 73%]
+backend/tests/test_auto_ingest.py::test_ensure_data_ingested_skips_when_populated PASSED [ 78%]
+backend/tests/test_auto_ingest.py::test_ensure_data_ingested_triggers_when_empty PASSED [ 84%]
+backend/tests/test_auto_ingest.py::test_ensure_data_ingested_graceful_on_elexon_failure PASSED [ 89%]
+backend/tests/test_metrics.py::test_accuracy_metrics_calculation PASSED  [ 94%]
+backend/tests/test_metrics.py::test_zero_generation_and_empty_dataset PASSED [100%]
 
-======================== 16 passed, 1 warning in 40.01s ========================
+======================== 19 passed, 1 warning in 39.60s ========================
 ```
 
 ## Troubleshooting
 
-- **DNS / Network Errors During Data Ingestion (`data.elexon.co.uk`):**
-  If `backend/scripts/ingest_data.py` raises a socket resolution error (`[Errno -5] No address associated with hostname` or connection timeout) when reaching Elexon BMRS, verify external internet access and DNS resolution. In Docker environments, ensure the host network allows outbound connections or that explicit DNS resolvers (`8.8.8.8`, `1.1.1.1`) configured in `docker-compose.yml` are reachable.
-- **Neon Database Connection / SSL Errors:**
-  FastAPI and SQLAlchemy require PostgreSQL connections to include `?sslmode=require` when communicating with Neon serverless endpoints. Verify that `DATABASE_URL` in `.env` is formatted as `postgresql+psycopg://user:password@ep-...-pooler...neon.tech/neondb?sslmode=require`. If pooled connections time out after idle periods, `pool_pre_ping=True` configured in `database.py` automatically reconnects dropped connections.
+- **DNS / Network Resolution Errors to Elexon BMRS (`data.elexon.co.uk`):**
+  If `backend/scripts/ingest_data.py` raises socket resolution or connection errors when communicating with Elexon, check external network access. In Docker, ensure outbound connections are allowed; explicit DNS resolvers (`8.8.8.8`, `1.1.1.1`) are pre-configured in `docker-compose.yml`.
+- **Neon PostgreSQL Connection / SSL Configuration:**
+  SQLAlchemy requires PostgreSQL connections to Neon to specify `?sslmode=require`. Verify `DATABASE_URL` in `.env` is formatted as `postgresql://user:password@ep-...-pooler...neon.tech/neondb?sslmode=require`. Automatic reconnection for dropped pooled connections is handled via `pool_pre_ping=True` in `database.py`.
 
 ## AI Tools Disclosure
 
@@ -231,3 +259,4 @@ In accordance with assessment guidelines, AI assistance (Google Antigravity / Ge
 - Researching Elexon BMRS API data structures and field specifications for `FUELHH` and `WINDFOR` streams.
 - Scaffolding initial FastAPI route handlers, Pydantic schemas, and React components.
 - Formulating test cases for edge conditions (zero generation, boundary timestamp matching, and missing data).
+All implementation code, statistical calculations, and design decisions were reviewed and validated by the author.

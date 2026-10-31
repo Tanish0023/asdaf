@@ -10,6 +10,7 @@ services:
       - PYTHONUNBUFFERED=1
       - DATABASE_URL=${DATABASE_URL}
       - ELEXON_BASE_URL=${ELEXON_BASE_URL:-https://data.elexon.co.uk/bmrs/api/v1}
+      - AUTO_INGEST=${AUTO_INGEST:-${Auto_ingest:-true}}
     dns:
       - 8.8.8.8
       - 1.1.1.1

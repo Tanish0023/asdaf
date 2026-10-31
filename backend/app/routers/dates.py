@@ -9,7 +9,7 @@ router = APIRouter(prefix="/api/v1", tags=["dates"])
 def get_available_dates():
     store = DataStore()
     date_info = store.get_available_dates()
-    status = store.get_sync_status()
+    status = store.get_data_status()
 
     return DateOptionsResponse(
         decision_dates=date_info["decision_dates"],

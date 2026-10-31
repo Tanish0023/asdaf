@@ -28,7 +28,7 @@ def test_day_ahead_endpoint():
     assert "summary" in data
 
 def test_metrics_summary_endpoint():
-    response = client.get("/api/v1/metrics/summary?start_date=2026-01-01&end_date=2026-01-31")
+    response = client.get("/api/v1/metrics/summary?start_date=2026-01-02&end_date=2026-02-01")
     assert response.status_code == 200
     data = response.json()
     assert "mae" in data
@@ -38,30 +38,29 @@ def test_metrics_summary_endpoint():
     assert "accuracy_rate" in data
     assert "p10_error" in data
     assert "p90_error" in data
-    assert "p90_shortfall" not in data
 
 def test_hourly_profile_endpoint():
-    response = client.get("/api/v1/metrics/hourly-profile?start_date=2026-01-01&end_date=2026-01-31")
+    response = client.get("/api/v1/metrics/hourly-profile?start_date=2026-01-02&end_date=2026-02-01")
     assert response.status_code == 200
     data = response.json()
     assert "profiles" in data
     assert len(data["profiles"]) == 24
 
 def test_distribution_endpoint():
-    response = client.get("/api/v1/metrics/distribution?start_date=2026-01-01&end_date=2026-01-31")
+    response = client.get("/api/v1/metrics/distribution?start_date=2026-01-02&end_date=2026-02-01")
     assert response.status_code == 200
     data = response.json()
     assert "distribution" in data
     assert "total_count" in data
 
 def test_dist_alias_endpoint():
-    response = client.get("/api/v1/metrics/dist?start_date=2026-01-01&end_date=2026-01-31")
+    response = client.get("/api/v1/metrics/dist?start_date=2026-01-02&end_date=2026-02-01")
     assert response.status_code == 200
     data = response.json()
     assert "distribution" in data
 
 def test_daily_timeline_endpoint():
-    response = client.get("/api/v1/metrics/daily?start_date=2026-01-01&end_date=2026-01-31")
+    response = client.get("/api/v1/metrics/daily?start_date=2026-01-02&end_date=2026-02-01")
     assert response.status_code == 200
     data = response.json()
     assert "timeline" in data

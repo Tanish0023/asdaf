@@ -6,7 +6,7 @@ from collections import defaultdict
 import math
 
 from app.services.data_store import DataStore
-from app.config import FIXED_DECISION_CUTOFF
+from app.config import FIXED_DECISION_CUTOFF, ASSESSMENT_START_DATE, ASSESSMENT_END_DATE
 from app.schemas import (
     HourlyDayAheadRecord, DayAheadSummary, DayAheadResponse,
     MetricsSummaryResponse, HourlyProfileItem, HourlyProfileResponse,
@@ -115,8 +115,8 @@ class AnalyticsService:
 
     def _collect_aligned_dataset(
         self,
-        start_date: str = "2026-01-01",
-        end_date: str = "2026-01-31",
+        start_date: str = ASSESSMENT_START_DATE,
+        end_date: str = ASSESSMENT_END_DATE,
         cutoff_time: str = FIXED_DECISION_CUTOFF
     ) -> List[Dict[str, Any]]:
         """
@@ -205,8 +205,8 @@ class AnalyticsService:
 
     def compute_metrics_summary(
         self,
-        start_date: str = "2026-01-01",
-        end_date: str = "2026-01-31",
+        start_date: str = ASSESSMENT_START_DATE,
+        end_date: str = ASSESSMENT_END_DATE,
         cutoff_time: str = FIXED_DECISION_CUTOFF
     ) -> MetricsSummaryResponse:
         points = self._collect_aligned_dataset(start_date, end_date, cutoff_time)
@@ -266,8 +266,8 @@ class AnalyticsService:
 
     def compute_hourly_profile(
         self,
-        start_date: str = "2026-01-01",
-        end_date: str = "2026-01-31",
+        start_date: str = ASSESSMENT_START_DATE,
+        end_date: str = ASSESSMENT_END_DATE,
         cutoff_time: str = FIXED_DECISION_CUTOFF
     ) -> HourlyProfileResponse:
         points = self._collect_aligned_dataset(start_date, end_date, cutoff_time)
@@ -302,8 +302,8 @@ class AnalyticsService:
 
     def compute_daily_timeline(
         self,
-        start_date: str = "2026-01-01",
-        end_date: str = "2026-01-31",
+        start_date: str = ASSESSMENT_START_DATE,
+        end_date: str = ASSESSMENT_END_DATE,
         cutoff_time: str = FIXED_DECISION_CUTOFF
     ) -> DailyTimelineResponse:
         points = self._collect_aligned_dataset(start_date, end_date, cutoff_time)
@@ -335,8 +335,8 @@ class AnalyticsService:
 
     def compute_error_distribution(
         self,
-        start_date: str = "2026-01-01",
-        end_date: str = "2026-01-31",
+        start_date: str = ASSESSMENT_START_DATE,
+        end_date: str = ASSESSMENT_END_DATE,
         cutoff_time: str = FIXED_DECISION_CUTOFF,
         num_bins: int = 16
     ) -> ErrorDistributionResponse:

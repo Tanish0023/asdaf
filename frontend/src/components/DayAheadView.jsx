@@ -138,7 +138,7 @@ export function DayAheadView({ availableDates }) {
             <div className="flex items-center text-xs text-slate-300 bg-slate-950/80 px-4 py-2.5 rounded-lg border border-slate-800">
               <Clock className="h-4 w-4 text-emerald-400 mr-2 shrink-0" />
               <span>
-                Decision Cutoff: <strong className="text-emerald-400">{data?.cutoff_time || "11:00"} UTC</strong> on D-1 (<strong className="text-slate-200">{data?.decision_date || "D-1"}</strong>)
+                Forecast as published at or before <strong className="text-emerald-400">{data?.cutoff_time || "11:00"} UTC</strong> on D-1 (<strong className="text-slate-200">{data?.decision_date || "D-1"}</strong>)
               </span>
             </div>
           </div>

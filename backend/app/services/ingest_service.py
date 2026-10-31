@@ -3,7 +3,7 @@ import logging
 from datetime import datetime
 from typing import Dict, Any, Tuple
 
-from app.services.elexon_client import ElexonClient, ElexonConnectionError
+from app.services.elexon_client import ElexonClient
 from app.services.data_store import DataStore
 
 logger = logging.getLogger("gridbricks.ingest")
@@ -17,7 +17,7 @@ async def fetch_from_elexon(
     """
     Fetches FUELHH actuals and WINDFOR forecasts from Elexon BMRS in parallel.
     """
-    logger.info("Fetching January 2026 wind actuals and forecasts from Elexon BMRS...")
+    logger.info("Fetching 31 Dec 2025 - 2 Feb 2026 wind actuals and forecasts from Elexon BMRS...")
     fuel_task = client.fetch_dataset_in_chunks("FUELHH", start_dt, end_dt, chunk_days=7)
     wind_task = client.fetch_dataset_in_chunks("WINDFOR", start_dt, end_dt, chunk_days=5)
 
@@ -30,21 +30,30 @@ async def fetch_from_elexon(
 
 async def ensure_data_ingested(force: bool = False) -> Dict[str, Any]:
     """
-    Checks if database contains data. If records are missing (or force=True),
-    automatically fetches live from Elexon BMRS (FUELHH actuals & WINDFOR forecasts).
+    Checks if database contains complete data covering 31 Dec 2025 - 2 Feb 2026.
+    If records are missing/incomplete (or force=True), fetches live from Elexon BMRS.
+    Performs a cheap completeness check first to avoid redundant network calls.
     """
     store = DataStore()
-    status = store.get_sync_status()
+    status = store.get_data_status()
 
-    if not force and status.get("actual_count", 0) > 0 and status.get("forecast_count", 0) > 0:
+    # Cheap check first: skip immediately if complete data is already present
+    if not force and status.get("is_complete"):
+        logger.info(
+            f"Database already contains complete dataset for 31 Dec 2025 - 2 Feb 2026 "
+            f"({status['actual_count']} actuals, {status['forecast_count']} forecasts). Skipping ingestion."
+        )
         return status
 
     client = ElexonClient()
     try:
         await fetch_from_elexon(client, store)
-    except (ElexonConnectionError, Exception) as e:
-        logger.error(f"Elexon BMRS fetch failed: {e}")
-        raise e
+    except Exception as e:
+        logger.warning(
+            f"Unable to reach Elexon BMRS API or ingestion failed: {e}. "
+            "Continuing with existing database records."
+        )
+        return store.get_data_status()
 
     store.invalidate_cache()
-    return store.get_sync_status()
+    return store.get_data_status()

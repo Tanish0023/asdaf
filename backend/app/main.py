@@ -14,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import logging
 
+from app.config import AUTO_INGEST
 from app.database import init_db
 from app.services.data_store import DataStore
 from app.services.ingest_service import ensure_data_ingested
@@ -30,14 +31,22 @@ async def lifespan(app: FastAPI):
     init_db()
     
     store = DataStore()
-    status = store.get_sync_status()
+    status = store.get_data_status()
     logger.info(f"Database connected. Records: {status['actual_count']} actuals, {status['forecast_count']} forecasts.")
 
-    if status.get("actual_count", 0) == 0 or status.get("forecast_count", 0) == 0:
-        logger.info("Database records missing. Auto-ingesting wind datasets from Elexon BMRS...")
-        await ensure_data_ingested()
-        new_status = store.get_sync_status()
-        logger.info(f"Ingestion complete: {new_status['actual_count']} actuals, {new_status['forecast_count']} forecasts.")
+    if not status.get("is_complete"):
+        if AUTO_INGEST:
+            logger.info("Database records missing or incomplete. AUTO_INGEST enabled: fetching 31 Dec 2025 - 2 Feb 2026 wind datasets from Elexon BMRS...")
+            try:
+                await ensure_data_ingested()
+                new_status = store.get_data_status()
+                logger.info(f"Ingestion complete: {new_status['actual_count']} actuals, {new_status['forecast_count']} forecasts.")
+            except Exception as e:
+                logger.warning(f"Auto-ingest encountered error: {e}. API starting with existing records.")
+        else:
+            logger.warning("Database records missing or incomplete, but auto-ingestion is disabled (AUTO_INGEST=false). Serving existing database records.")
+    else:
+        logger.info("Database contains complete dataset (31 Dec 2025 - 2 Feb 2026). Ingestion skipped.")
     
     yield
     logger.info("Shutting down GridBricks API...")
@@ -70,7 +79,7 @@ app.include_router(metrics.router)
 @app.get("/api/health")
 def health_check():
     store = DataStore()
-    status = store.get_sync_status()
+    status = store.get_data_status()
     return {
         "status": "healthy",
         "service": "GridBricks WindPulse Backend",

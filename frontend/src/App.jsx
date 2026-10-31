@@ -55,7 +55,7 @@ export default function App() {
 
           {/* Tab 2: Quantitative Accuracy Evaluation */}
           <TabsContent value="accuracy">
-            <AccuracyView />
+            <AccuracyView availableDates={dateInfo} />
           </TabsContent>
         </Tabs>
       </main>

@@ -32,8 +32,15 @@ def get_database_url() -> str:
     return url
 
 ELEXON_BASE_URL = os.getenv("ELEXON_BASE_URL", "https://data.elexon.co.uk/bmrs/api/v1")
+def _get_auto_ingest() -> bool:
+    for key in ("AUTO_INGEST", "Auto_ingest", "auto_ingest"):
+        val = os.getenv(key)
+        if val is not None and val.strip() != "":
+            return val.strip().lower() in ("true", "1", "yes")
+    return True
+
+AUTO_INGEST = _get_auto_ingest()
 FIXED_DECISION_CUTOFF = "11:00"  # Fixed decision cutoff time on D-1 (11:00 UTC)
-DEFAULT_CUTOFF_TIME = FIXED_DECISION_CUTOFF
-ASSESSMENT_START_DATE = "2026-01-01"
-ASSESSMENT_END_DATE = "2026-01-31"
+ASSESSMENT_START_DATE = "2026-01-02"  # Delivery days corresponding to decisions made in Jan 2026
+ASSESSMENT_END_DATE = "2026-02-01"
 
